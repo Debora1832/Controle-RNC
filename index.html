@@ -854,6 +854,32 @@
 <body>
     <div id="app"></div>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+
+        const firebaseConfig = Object.freeze({
+            apiKey: "AIzaSyBcrG1TEl6Q4C1Nsu0BJJ0HlZZzcqUNHVc",
+            authDomain: "controle-rnc.firebaseapp.com",
+            projectId: "controle-rnc",
+            storageBucket: "controle-rnc.firebasestorage.app",
+            messagingSenderId: "949786734068",
+            appId: "1:949786734068:web:1f6e27f35449907a7a1da1"
+        });
+
+        const allowedFirebaseHosts = new Set(["debora1832.github.io", "localhost", "127.0.0.1"]);
+
+        try {
+            if (allowedFirebaseHosts.has(window.location.hostname)) {
+                window.firebaseApp = initializeApp(firebaseConfig);
+                console.info("Firebase inicializado com sucesso.");
+            } else {
+                console.warn("Inicialização do Firebase ignorada para host não autorizado.");
+            }
+        } catch (error) {
+            console.error("Falha ao inicializar o Firebase:", error);
+        }
+    </script>
+
     <script>
         // ESTADO GLOBAL
         let state = {
