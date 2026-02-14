@@ -1095,9 +1095,15 @@
                 state.rncs = snapshot.docs
                     .map(doc => {
                         const numericId = Number(doc.id);
-                        return { ...doc.data(), id: Number.isFinite(numericId) ? numericId : doc.data().id };
+                        const data = doc.data();
+                        const id = Number.isFinite(numericId) ? numericId : data.id;
+                        if (!Number.isFinite(id)) {
+                            console.warn('RNC ignorada por ID inválido no Firebase:', doc.id, data.id);
+                            return null;
+                        }
+                        return { ...data, id };
                     })
-                    .filter(rnc => Number.isFinite(rnc.id))
+                    .filter(rnc => rnc && Number.isFinite(rnc.id))
                     .sort((a, b) => a.id - b.id);
             } catch (error) {
                 console.warn('Falha ao carregar RNCs do Firebase:', error);
@@ -1105,12 +1111,23 @@
         }
 
         function salvarRNCNoFirebase(rnc) {
-            if (!db || !rnc || !Number.isFinite(rnc.id)) return Promise.resolve();
+            if (!db) {
+                console.warn('Salvamento não executado. Firebase indisponível.');
+                return Promise.resolve(false);
+            }
+            if (!rnc || !Number.isFinite(rnc.id)) {
+                console.warn('Salvamento não executado. RNC inválida.');
+                return Promise.resolve(false);
+            }
 
             return db.collection('rncs')
                 .doc(String(rnc.id))
                 .set(rnc, { merge: true })
-                .catch(error => console.warn('Falha ao salvar RNC no Firebase:', error));
+                .then(() => true)
+                .catch(error => {
+                    console.warn('Falha ao salvar RNC no Firebase:', error);
+                    return false;
+                });
         }
 
         function render() {
@@ -1748,7 +1765,7 @@
             return content;
         }
 
-        function salvarFase(phaseId) {
+        async function salvarFase(phaseId) {
             const rnc = state.selectedRNC;
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
             
@@ -1782,8 +1799,8 @@
             }
             
             state.selectedRNC = state.rncs[rncIndex];
-            salvarRNCNoFirebase(state.selectedRNC);
-            alert('Dados salvos com sucesso!');
+            const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+            alert(salvoNoFirebase ? 'Dados salvos com sucesso!' : 'Dados salvos localmente. Firebase indisponível.');
         }
 
         function solicitarReprazo(phaseId, num) {
@@ -1825,7 +1842,7 @@
             overlay.onclick = (e) => e.target === overlay && overlay.remove();
             document.body.appendChild(overlay);
             
-            document.getElementById('reprazoForm').onsubmit = (e) => {
+            document.getElementById('reprazoForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const novaData = document.getElementById('novaData').value;
                 const just = document.getElementById('justificativa').value;
@@ -1841,10 +1858,10 @@
                 
                 state.rncs[rncIndex].status = "AT_RISK";
                 state.selectedRNC = state.rncs[rncIndex];
-                salvarRNCNoFirebase(state.selectedRNC);
+                const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
-                alert(`Re-prazo ${num} solicitado com sucesso!`);
+                alert(salvoNoFirebase ? `Re-prazo ${num} solicitado com sucesso!` : `Re-prazo ${num} salvo localmente. Firebase indisponível.`);
             };
         }
 
