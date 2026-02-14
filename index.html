@@ -1135,16 +1135,16 @@
             { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", email: "joao.mendes@empresa.com" }
         ];
         let modosFalhaBase = [
-            { id: 1, nome: "Dimensional", categoria: "Produto", setor: "Usinagem" },
-            { id: 2, nome: "Acabamento", categoria: "Processo", setor: "Pintura" },
-            { id: 3, nome: "Montagem", categoria: "Processo", setor: "Montagem" }
+            { id: 1, nome: "Dimensional" },
+            { id: 2, nome: "Acabamento" },
+            { id: 3, nome: "Montagem" }
         ];
         let clientesBase = [
-            { id: 1, nome: "AutoParts Brasil", segmento: "Automotivo", planta: "Planta A" },
-            { id: 2, nome: "Metal Solutions", segmento: "Metalúrgico", planta: "Planta B" },
-            { id: 3, nome: "TechParts Ltd", segmento: "Automotivo", planta: "Planta C" },
-            { id: 4, nome: "Indústria XYZ", segmento: "Industrial", planta: "Planta A" },
-            { id: 5, nome: "MegaAuto SA", segmento: "Automotivo", planta: "Planta B" }
+            { id: 1, nome: "AutoParts Brasil", fotoNome: "", fotoConteudo: "" },
+            { id: 2, nome: "Metal Solutions", fotoNome: "", fotoConteudo: "" },
+            { id: 3, nome: "TechParts Ltd", fotoNome: "", fotoConteudo: "" },
+            { id: 4, nome: "Indústria XYZ", fotoNome: "", fotoConteudo: "" },
+            { id: 5, nome: "MegaAuto SA", fotoNome: "", fotoConteudo: "" }
         ];
 
         const phases = [
@@ -1244,9 +1244,7 @@
                     titulo: 'Modo de Falha',
                     descricao: 'Tipos de falha padronizados para RNC',
                     fields: [
-                        { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
-                        { key: 'categoria', label: 'Categoria', type: 'text', required: true },
-                        { key: 'setor', label: 'Setor', type: 'text', required: true }
+                        { key: 'nome', label: 'Nome do Modo de Falha', type: 'text', required: true }
                     ]
                 };
             }
@@ -1254,9 +1252,8 @@
                 titulo: 'Cliente',
                 descricao: 'Clientes reutilizáveis nas RNCs',
                 fields: [
-                    { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
-                    { key: 'segmento', label: 'Segmento', type: 'text', required: true },
-                    { key: 'planta', label: 'Planta', type: 'text', required: true }
+                    { key: 'nome', label: 'Nome do Cliente', type: 'text', required: true },
+                    { key: 'fotoConteudo', label: 'Foto', type: 'file', required: true, isImage: true }
                 ]
             };
         }
@@ -1335,7 +1332,7 @@
             overlay.className = 'modal-overlay active';
             overlay.style.zIndex = '1002';
             overlay.innerHTML = `
-                <div class="modal-content" style="max-width: 900px;" onclick="event.stopPropagation()">
+                <div class="modal-content" style="max-width: 1200px; width: 95vw;" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <div>
                             <h2 class="modal-title">Gerenciar ${config.titulo}</h2>
@@ -1344,6 +1341,7 @@
                         <button class="modal-close" data-close-cadastro-lista>×</button>
                     </div>
                     <div class="modal-body">
+                        <div style="overflow:auto;">
                         <table>
                             <thead>
                                 <tr>
@@ -1356,7 +1354,12 @@
                                     <tr><td colspan="${config.fields.length + 1}" style="text-align:center; color:#64748b;">Nenhum item cadastrado.</td></tr>
                                 ` : lista.map(item => `
                                     <tr>
-                                        ${config.fields.map(field => `<td>${escapeHtml(item[field.key] || '')}</td>`).join('')}
+                                        ${config.fields.map(field => {
+                                            if (field.isImage) {
+                                                return `<td>${item.fotoConteudo ? `<img src="${item.fotoConteudo}" alt="${escapeHtml(item.nome)}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;">` : '<span style="color:#94a3b8;">Sem foto</span>'}</td>`;
+                                            }
+                                            return `<td>${escapeHtml(item[field.key] || '')}</td>`;
+                                        }).join('')}
                                         <td style="display:flex; gap:0.5rem;">
                                             <button type="button" class="btn btn-secondary btn-editar-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Editar</button>
                                             <button type="button" class="btn btn-warning btn-excluir-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Excluir</button>
@@ -1365,6 +1368,7 @@
                                 `).join('')}
                             </tbody>
                         </table>
+                        </div>
                         <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
                             <button type="button" class="btn btn-primary btn-novo-cadastro-item" data-cadastro-tipo="${tipo}">Novo Cadastro</button>
                         </div>
@@ -1418,7 +1422,11 @@
                             ${config.fields.map(field => `
                                 <div class="form-group">
                                     <label>${field.label} ${field.required ? '*' : ''}</label>
-                                    <input type="${field.type}" name="${field.key}" value="${escapeHtml(item?.[field.key] || '')}" ${field.required ? 'required' : ''}>
+                                    ${field.type === 'file'
+                                        ? `<input type="file" name="${field.key}" accept="image/*" ${field.required && !item?.fotoConteudo ? 'required' : ''}>`
+                                        : `<input type="${field.type}" name="${field.key}" value="${escapeHtml(item?.[field.key] || '')}" ${field.required ? 'required' : ''}>`
+                                    }
+                                    ${field.isImage && item?.fotoConteudo ? `<div style="margin-top:0.5rem;"><img src="${item.fotoConteudo}" alt="${escapeHtml(item.nome)}" style="width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;"></div>` : ''}
                                 </div>
                             `).join('')}
                             <div style="display:flex; gap:0.75rem;">
@@ -1432,17 +1440,35 @@
             overlay.onclick = (e) => e.target === overlay && overlay.remove();
             document.body.appendChild(overlay);
             overlay.querySelectorAll('[data-close-cadastro-form]').forEach(btn => btn.onclick = () => overlay.remove());
-            overlay.querySelector('#cadastroItemForm').onsubmit = (e) => {
+            overlay.querySelector('#cadastroItemForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
                 const payload = {};
-                config.fields.forEach(field => payload[field.key] = String(formData.get(field.key) || '').trim());
-                const invalid = config.fields.some(field => field.required && !payload[field.key]);
+                config.fields.forEach(field => {
+                    if (field.type !== 'file') payload[field.key] = String(formData.get(field.key) || '').trim();
+                });
+                const invalid = config.fields.some(field => field.required && field.type !== 'file' && !payload[field.key]);
                 if (invalid) {
                     alert('Preencha todos os campos obrigatórios.');
                     return;
                 }
                 const listaBase = getCadastroLista(tipo);
+                const fotoField = config.fields.find(field => field.type === 'file');
+                if (fotoField) {
+                    const fotoFile = formData.get(fotoField.key);
+                    if (fotoFile && fotoFile.name) {
+                        const base64 = await lerArquivoBase64(fotoFile, 'foto cliente');
+                        if (!base64) {
+                            alert('Não foi possível processar a foto. Tente novamente.');
+                            return;
+                        }
+                        payload.fotoNome = fotoFile.name;
+                        payload.fotoConteudo = base64;
+                    } else if (fotoField.required && !item?.fotoConteudo) {
+                        alert('A foto do cliente é obrigatória.');
+                        return;
+                    }
+                }
                 if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
                     alert('Informe um e-mail válido.');
                     return;
