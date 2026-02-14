@@ -2343,7 +2343,7 @@
                         <label>Evidências</label>
                         <input type="text" id="d3-evidencia" value="${rnc.d3.evidencia}">
                     </div>
-                    <div id="d3-validacao-msg" style="margin-bottom:1rem;"></div>
+                    <div id="d3-validacao-msg" class="prazo-justificativa" style="margin-bottom:1rem; display:none;"></div>
                     <button type="button" class="btn btn-primary" id="d3-etapa-concluida-btn" onclick="concluirEtapaD3()" disabled>Etapa Concluída</button>
                     ${prazo.reprazo1 ? `
                         <div class="prazo-justificativa">
@@ -2537,12 +2537,13 @@
 
             const etapaConcluida = !!state.selectedRNC?.d3?.etapaConcluida;
             concluirBtn.disabled = etapaConcluida || !validacao.valido;
-            msg.textContent = etapaConcluida ? 'Etapa D3 já concluída.' : validacao.mensagem;
-            msg.style.color = etapaConcluida || validacao.valido ? '#065f46' : '#92400e';
-            msg.style.background = etapaConcluida || validacao.valido ? '#d1fae5' : '#fef3c7';
-            msg.style.border = `1px solid ${(etapaConcluida || validacao.valido) ? '#10b981' : '#f59e0b'}`;
-            msg.style.padding = '0.75rem';
-            msg.style.borderRadius = '8px';
+            if (!etapaConcluida && !validacao.valido) {
+                msg.textContent = validacao.mensagem;
+                msg.style.display = 'block';
+            } else {
+                msg.textContent = '';
+                msg.style.display = 'none';
+            }
         }
 
         function lerArquivoBase64(file, contexto = 'arquivo') {
