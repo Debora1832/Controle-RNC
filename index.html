@@ -148,6 +148,13 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
             border: 1px solid #e2e8f0;
             position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
         }
         
         .stat-card::before {
@@ -160,10 +167,69 @@
             background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
         }
         
+        .stat-card.success::before {
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+        }
+        
+        .stat-card.warning::before {
+            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        .stat-card.danger::before {
+            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-icon {
+            font-size: 2rem;
+            opacity: 0.2;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        
         .stat-value {
             font-size: 2.75rem;
             font-weight: 900;
             color: #1e40af;
+            line-height: 1;
+        }
+        
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        .stat-trend.positive {
+            color: #059669;
+        }
+        
+        .stat-trend.negative {
+            color: #dc2626;
+        }
+        
+        .stat-trend.neutral {
+            color: #64748b;
+        }
+        
+        .stat-comparison {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.25rem;
         }
         
         /* TABELA */
@@ -536,6 +602,253 @@
             font-weight: 900;
             color: white;
         }
+        
+        /* DASHBOARD ENHANCEMENTS */
+        .metrics-section {
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .lean-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Bar Chart */
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .bar-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .bar-label {
+            min-width: 100px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+        }
+        
+        .bar-container {
+            flex: 1;
+            height: 32px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 0.75rem;
+            color: white;
+            font-weight: 700;
+            font-size: 0.75rem;
+            transition: width 0.8s ease;
+            border-radius: 8px;
+        }
+        
+        .bar-value {
+            min-width: 40px;
+            text-align: right;
+            font-weight: 700;
+            font-size: 0.875rem;
+            color: #1e40af;
+        }
+        
+        /* Donut Chart */
+        .donut-chart {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .donut-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+        }
+        
+        .donut-svg {
+            transform: rotate(-90deg);
+        }
+        
+        .donut-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .donut-total {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #1e40af;
+        }
+        
+        .donut-label-text {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        .donut-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .donut-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .donut-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        
+        .donut-legend-label {
+            font-size: 0.875rem;
+            color: #475569;
+            font-weight: 600;
+            flex: 1;
+        }
+        
+        .donut-legend-value {
+            font-weight: 700;
+            font-size: 0.875rem;
+            color: #1e40af;
+        }
+        
+        /* Line Chart */
+        .line-chart {
+            position: relative;
+            height: 200px;
+        }
+        
+        .line-chart-svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .line-chart-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+        }
+        
+        .line-chart-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        /* Tooltips */
+        .chart-tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+        }
+        
+        .chart-tooltip.active {
+            opacity: 1;
+        }
+        
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .fade-in-up {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+        
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .lean-metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .donut-chart {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -614,8 +927,128 @@
                         d7: { original: "2026-02-26", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
                         d8: { original: "2026-02-27", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
                     }
+                },
+                {
+                    id: 3,
+                    numero: "RNC-2026-003",
+                    cliente: "TechParts Ltd",
+                    codigoPeca: "P-11223",
+                    tipoFalha: "Montagem",
+                    responsavel: "Lucas Santos",
+                    quantidade: 85,
+                    faseAtual: "d6",
+                    status: "ON_TIME",
+                    prioridade: "Alta",
+                    setor: "Montagem",
+                    dataAbertura: "2026-02-05",
+                    dataEncerramento: null,
+                    descricao: "Erro de montagem",
+                    d1: { equipe: "Lucas Santos, Ana Costa", lider: "Lucas Santos" },
+                    d2: { problema: "Componente montado invertido", is5w2h: "Sim" },
+                    d3: { acaoContemcao: "Desmontagem e remontagem", evidencia: "Check-list anexo" },
+                    d4: { causaRaiz: "Falta de procedimento visual", why1: "Sem instrução", why2: "", why3: "", why4: "", why5: "" },
+                    d5: { acoesCorretivas: "Criar instrução de trabalho visual" },
+                    d6: { planoImplementacao: "Em andamento", responsavel: "Lucas Santos", prazoImplementacao: "2026-02-20" },
+                    d7: { acoesPreventivas: "" },
+                    d8: { reconhecimento: "", licaoAprendida: "" },
+                    prazos: {
+                        d1: { original: "2026-02-05", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d2: { original: "2026-02-05", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d3: { original: "2026-02-06", sla: "24 horas", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d4: { original: "2026-02-09", sla: "3 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d5: { original: "2026-02-11", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d6: { original: "2026-02-20", sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d7: { original: "2026-02-22", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d8: { original: "2026-02-23", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                    }
+                },
+                {
+                    id: 4,
+                    numero: "RNC-2026-004",
+                    cliente: "Indústria XYZ",
+                    codigoPeca: "P-99887",
+                    tipoFalha: "Acabamento",
+                    responsavel: "Pedro Costa",
+                    quantidade: 200,
+                    faseAtual: "d2",
+                    status: "ON_TIME",
+                    prioridade: "Média",
+                    setor: "Acabamento",
+                    dataAbertura: "2026-02-12",
+                    dataEncerramento: null,
+                    descricao: "Risco na superfície",
+                    d1: { equipe: "Pedro Costa, Maria Lima", lider: "Pedro Costa" },
+                    d2: { problema: "Arranhões na superfície polida", is5w2h: "Em andamento" },
+                    d3: { acaoContemcao: "", evidencia: "" },
+                    d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
+                    d5: { acoesCorretivas: "" },
+                    d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
+                    d7: { acoesPreventivas: "" },
+                    d8: { reconhecimento: "", licaoAprendida: "" },
+                    prazos: {
+                        d1: { original: "2026-02-12", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d2: { original: "2026-02-12", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d3: { original: "2026-02-13", sla: "24 horas", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d4: { original: "2026-02-16", sla: "3 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d5: { original: "2026-02-18", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d6: { original: "2026-02-25", sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d7: { original: "2026-02-27", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d8: { original: "2026-02-28", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                    }
+                },
+                {
+                    id: 5,
+                    numero: "RNC-2026-005",
+                    cliente: "MegaAuto SA",
+                    codigoPeca: "P-55443",
+                    tipoFalha: "Dimensional",
+                    responsavel: "Débora Silva",
+                    quantidade: 75,
+                    faseAtual: "d5",
+                    status: "AT_RISK",
+                    prioridade: "Alta",
+                    setor: "Usinagem",
+                    dataAbertura: "2026-02-08",
+                    dataEncerramento: null,
+                    descricao: "Diâmetro fora de especificação",
+                    d1: { equipe: "Débora Silva, João Mendes", lider: "Débora Silva" },
+                    d2: { problema: "Diâmetro externo com variação", is5w2h: "Sim" },
+                    d3: { acaoContemcao: "Segregação e inspeção total", evidencia: "Relatório metrológico" },
+                    d4: { causaRaiz: "Desgaste da ferramenta", why1: "Ferramenta não calibrada", why2: "Falta de plano de calibração", why3: "", why4: "", why5: "" },
+                    d5: { acoesCorretivas: "Implementar plano de calibração" },
+                    d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
+                    d7: { acoesPreventivas: "" },
+                    d8: { reconhecimento: "", licaoAprendida: "" },
+                    prazos: {
+                        d1: { original: "2026-02-08", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d2: { original: "2026-02-08", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d3: { original: "2026-02-09", sla: "24 horas", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d4: { original: "2026-02-12", sla: "3 dias", reprazo1: "2026-02-14", reprazo2: null, just1: "Aguardando análise metrológica", just2: "" },
+                        d5: { original: "2026-02-14", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d6: { original: "2026-02-21", sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d7: { original: "2026-02-23", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d8: { original: "2026-02-24", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                    }
                 }
             ]
+        };
+
+        // Dados históricos para tendências (últimos 6 meses)
+        const historicalData = {
+            monthlyRNCs: [
+                { month: "Set/25", count: 3, onTime: 2, atRisk: 1 },
+                { month: "Out/25", count: 5, onTime: 4, atRisk: 1 },
+                { month: "Nov/25", count: 4, onTime: 3, atRisk: 1 },
+                { month: "Dez/25", count: 6, onTime: 4, atRisk: 2 },
+                { month: "Jan/26", count: 7, onTime: 5, atRisk: 2 },
+                { month: "Fev/26", count: 5, onTime: 3, atRisk: 2 }
+            ],
+            previousMonth: {
+                total: 7,
+                onTime: 5,
+                atRisk: 2,
+                avgLeadTime: 14.5
+            }
         };
 
         const users = [
@@ -715,34 +1148,235 @@
         }
 
         function renderDashboard() {
+            // Cálculos de métricas básicas
             const total = state.rncs.length;
             const noPrazo = state.rncs.filter(r => r.status === "ON_TIME").length;
             const emRisco = state.rncs.filter(r => r.status === "AT_RISK").length;
             
+            // Cálculos Lean
+            const taxaNoPrazo = total > 0 ? ((noPrazo / total) * 100).toFixed(1) : 0;
+            const rncsComReprazo = state.rncs.filter(r => {
+                return Object.values(r.prazos).some(p => p.reprazo1 !== null || p.reprazo2 !== null);
+            }).length;
+            const taxaReprazo = total > 0 ? ((rncsComReprazo / total) * 100).toFixed(1) : 0;
+            
+            // Lead Time médio (simulado - dias desde abertura)
+            const hoje = new Date('2026-02-14');
+            const leadTimes = state.rncs.map(r => {
+                const abertura = new Date(r.dataAbertura);
+                return Math.floor((hoje - abertura) / (1000 * 60 * 60 * 24));
+            });
+            const avgLeadTime = leadTimes.length > 0 ? 
+                (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : 0;
+            
+            // Comparação com mês anterior
+            const prevTotal = historicalData.previousMonth.total;
+            const totalTrend = total - prevTotal;
+            const totalTrendPercent = prevTotal > 0 ? ((totalTrend / prevTotal) * 100).toFixed(0) : 0;
+            const leadTimeTrend = avgLeadTime - historicalData.previousMonth.avgLeadTime;
+            
+            // Distribuição por setor
+            const porSetor = {};
+            state.rncs.forEach(r => {
+                porSetor[r.setor] = (porSetor[r.setor] || 0) + 1;
+            });
+            const setorData = Object.entries(porSetor).map(([setor, count]) => ({ setor, count }))
+                .sort((a, b) => b.count - a.count);
+            
+            // Distribuição por tipo de falha
+            const porTipo = {};
+            state.rncs.forEach(r => {
+                porTipo[r.tipoFalha] = (porTipo[r.tipoFalha] || 0) + 1;
+            });
+            const tipoData = Object.entries(porTipo).map(([tipo, count]) => ({ tipo, count }))
+                .sort((a, b) => b.count - a.count);
+            
+            // Tempo médio por fase (simulado)
+            const tempoMedioPorFase = {
+                'D1-D2': 0.5,
+                'D2-D3': 1.2,
+                'D3-D4': 3.5,
+                'D4-D5': 2.8,
+                'D5-D6': 4.2,
+                'D6-D7': 5.5,
+                'D7-D8': 1.5
+            };
+            
             return `
                 <h1 class="page-title">Dashboard Executivo</h1>
+                
+                <!-- Métricas Principais -->
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">Total de RNCs</p>
+                    <div class="stat-card fade-in-up stagger-1" data-filter="all">
+                        <div class="stat-header">
+                            <div class="stat-icon">📊</div>
+                        </div>
+                        <div class="stat-label">Total de RNCs</div>
                         <div class="stat-value">${total}</div>
+                        <div class="stat-trend ${totalTrend > 0 ? 'negative' : totalTrend < 0 ? 'positive' : 'neutral'}">
+                            <span>${totalTrend > 0 ? '↗' : totalTrend < 0 ? '↘' : '→'} ${Math.abs(totalTrendPercent)}%</span>
+                        </div>
+                        <div class="stat-comparison">vs mês anterior (${prevTotal})</div>
                     </div>
-                    <div class="stat-card">
-                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">No Prazo</p>
+                    
+                    <div class="stat-card success fade-in-up stagger-2" data-filter="ON_TIME">
+                        <div class="stat-header">
+                            <div class="stat-icon">✅</div>
+                        </div>
+                        <div class="stat-label">No Prazo</div>
                         <div class="stat-value" style="color: #059669;">${noPrazo}</div>
+                        <div class="stat-trend positive">
+                            <span>${taxaNoPrazo}% do total</span>
+                        </div>
+                        <div class="stat-comparison">Meta: ≥ 80%</div>
                     </div>
-                    <div class="stat-card">
-                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">Em Risco</p>
+                    
+                    <div class="stat-card danger fade-in-up stagger-3" data-filter="AT_RISK">
+                        <div class="stat-header">
+                            <div class="stat-icon">⚠️</div>
+                        </div>
+                        <div class="stat-label">Em Risco</div>
                         <div class="stat-value" style="color: #dc2626;">${emRisco}</div>
+                        <div class="stat-trend ${emRisco > 2 ? 'negative' : 'positive'}">
+                            <span>${((emRisco / total) * 100).toFixed(1)}% do total</span>
+                        </div>
+                        <div class="stat-comparison">Meta: ≤ 20%</div>
+                    </div>
+                    
+                    <div class="stat-card fade-in-up stagger-4">
+                        <div class="stat-header">
+                            <div class="stat-icon">⏱️</div>
+                        </div>
+                        <div class="stat-label">Lead Time Médio</div>
+                        <div class="stat-value" style="font-size: 2.25rem;">${avgLeadTime}<span style="font-size: 1rem; color: #64748b; font-weight: 600;"> dias</span></div>
+                        <div class="stat-trend ${leadTimeTrend > 0 ? 'negative' : 'positive'}">
+                            <span>${leadTimeTrend > 0 ? '↗' : '↘'} ${Math.abs(leadTimeTrend).toFixed(1)} dias</span>
+                        </div>
+                        <div class="stat-comparison">vs mês anterior</div>
                     </div>
                 </div>
                 
-                <div class="card">
+                <!-- Métricas Lean -->
+                <div class="section-title" style="margin-top: 2rem;">📈 Métricas Lean</div>
+                <div class="lean-metrics-grid">
+                    <div class="stat-card ${taxaNoPrazo >= 80 ? 'success' : taxaNoPrazo >= 60 ? 'warning' : 'danger'} fade-in-up">
+                        <div class="stat-label">Taxa Resolução no Prazo</div>
+                        <div class="stat-value" style="font-size: 2.5rem; color: ${taxaNoPrazo >= 80 ? '#059669' : taxaNoPrazo >= 60 ? '#f59e0b' : '#dc2626'};">${taxaNoPrazo}%</div>
+                        <div class="stat-comparison">RNCs concluídas dentro do prazo</div>
+                    </div>
+                    
+                    <div class="stat-card ${taxaReprazo <= 20 ? 'success' : taxaReprazo <= 40 ? 'warning' : 'danger'} fade-in-up">
+                        <div class="stat-label">Taxa de Re-prazos</div>
+                        <div class="stat-value" style="font-size: 2.5rem; color: ${taxaReprazo <= 20 ? '#059669' : taxaReprazo <= 40 ? '#f59e0b' : '#dc2626'};">${taxaReprazo}%</div>
+                        <div class="stat-comparison">${rncsComReprazo} de ${total} RNCs com reprazo</div>
+                    </div>
+                    
+                    <div class="stat-card fade-in-up">
+                        <div class="stat-label">Tempo Médio D1 → D8</div>
+                        <div class="stat-value" style="font-size: 2.5rem;">15.2<span style="font-size: 1rem; color: #64748b; font-weight: 600;"> dias</span></div>
+                        <div class="stat-comparison">Ciclo completo 8D</div>
+                    </div>
+                </div>
+                
+                <!-- Gráficos -->
+                <div class="section-title" style="margin-top: 2rem;">📊 Análises Visuais</div>
+                <div class="charts-grid">
+                    <!-- Gráfico RNCs por Setor -->
+                    <div class="chart-card fade-in-up">
+                        <div class="chart-title">RNCs por Setor</div>
+                        <div class="bar-chart">
+                            ${setorData.map(item => {
+                                const percentage = (item.count / total) * 100;
+                                return `
+                                    <div class="bar-item">
+                                        <div class="bar-label">${item.setor}</div>
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="width: ${percentage}%">
+                                                ${item.count > 1 ? item.count : ''}
+                                            </div>
+                                        </div>
+                                        <div class="bar-value">${item.count}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Gráfico Distribuição de Status -->
+                    <div class="chart-card fade-in-up">
+                        <div class="chart-title">Distribuição de Status</div>
+                        <div class="donut-chart">
+                            <div class="donut-container">
+                                <svg class="donut-svg" width="200" height="200" viewBox="0 0 200 200">
+                                    ${renderDonutChart(noPrazo, emRisco)}
+                                </svg>
+                                <div class="donut-center">
+                                    <div class="donut-total">${total}</div>
+                                    <div class="donut-label-text">RNCs</div>
+                                </div>
+                            </div>
+                            <div class="donut-legend">
+                                <div class="donut-legend-item">
+                                    <div class="donut-color" style="background: #10b981;"></div>
+                                    <div class="donut-legend-label">No Prazo</div>
+                                    <div class="donut-legend-value">${noPrazo}</div>
+                                </div>
+                                <div class="donut-legend-item">
+                                    <div class="donut-color" style="background: #ef4444;"></div>
+                                    <div class="donut-legend-label">Em Risco</div>
+                                    <div class="donut-legend-value">${emRisco}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Gráfico RNCs por Tipo de Falha -->
+                    <div class="chart-card fade-in-up">
+                        <div class="chart-title">RNCs por Tipo de Falha</div>
+                        <div class="bar-chart">
+                            ${tipoData.map(item => {
+                                const percentage = (item.count / total) * 100;
+                                return `
+                                    <div class="bar-item">
+                                        <div class="bar-label">${item.tipo}</div>
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="width: ${percentage}%; background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);">
+                                                ${item.count > 1 ? item.count : ''}
+                                            </div>
+                                        </div>
+                                        <div class="bar-value">${item.count}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- Gráfico Tendência Mensal -->
+                    <div class="chart-card fade-in-up">
+                        <div class="chart-title">Tendência de RNCs (Últimos 6 Meses)</div>
+                        <div class="line-chart">
+                            <svg class="line-chart-svg" viewBox="0 0 100 50">
+                                ${renderLineChart(historicalData.monthlyRNCs)}
+                            </svg>
+                        </div>
+                        <div class="line-chart-labels">
+                            ${historicalData.monthlyRNCs.map(m => `
+                                <span class="line-chart-label">${m.month}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabela de RNCs -->
+                <div class="section-title" style="margin-top: 2rem;">📋 Lista de RNCs</div>
+                <div class="card fade-in-up">
                     <table>
                         <thead>
                             <tr>
                                 <th>Número</th>
                                 <th>Cliente</th>
                                 <th>Tipo</th>
+                                <th>Setor</th>
                                 <th>Prioridade</th>
                                 <th>Fase</th>
                                 <th>Status</th>
@@ -754,6 +1388,7 @@
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${rnc.tipoFalha}</td>
+                                    <td>${rnc.setor}</td>
                                     <td><span class="badge ${rnc.prioridade === 'Alta' ? 'red' : 'orange'}">${rnc.prioridade}</span></td>
                                     <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
                                     <td><span class="badge ${rnc.status === 'ON_TIME' ? 'green' : 'red'}">${rnc.status === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
@@ -762,6 +1397,60 @@
                         </tbody>
                     </table>
                 </div>
+            `;
+        }
+        
+        // Função auxiliar para renderizar gráfico donut
+        function renderDonutChart(onTime, atRisk) {
+            const total = onTime + atRisk;
+            if (total === 0) return '';
+            
+            const radius = 80;
+            const circumference = 2 * Math.PI * radius;
+            const onTimePercent = onTime / total;
+            const atRiskPercent = atRisk / total;
+            
+            const onTimeStroke = circumference * onTimePercent;
+            const atRiskStroke = circumference * atRiskPercent;
+            
+            return `
+                <circle cx="100" cy="100" r="${radius}" fill="none" stroke="#f1f5f9" stroke-width="30"/>
+                <circle cx="100" cy="100" r="${radius}" fill="none" stroke="#10b981" stroke-width="30"
+                    stroke-dasharray="${onTimeStroke} ${circumference}"
+                    stroke-dashoffset="0"
+                    style="transition: stroke-dasharray 1s ease;"/>
+                <circle cx="100" cy="100" r="${radius}" fill="none" stroke="#ef4444" stroke-width="30"
+                    stroke-dasharray="${atRiskStroke} ${circumference}"
+                    stroke-dashoffset="${-onTimeStroke}"
+                    style="transition: stroke-dasharray 1s ease;"/>
+            `;
+        }
+        
+        // Função auxiliar para renderizar gráfico de linha
+        function renderLineChart(data) {
+            const maxCount = Math.max(...data.map(d => d.count));
+            const points = data.map((d, i) => {
+                const x = (i / (data.length - 1)) * 100;
+                const y = 45 - ((d.count / maxCount) * 35);
+                return `${x},${y}`;
+            }).join(' ');
+            
+            const area = `0,45 ${points} 100,45`;
+            
+            return `
+                <defs>
+                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.05" />
+                    </linearGradient>
+                </defs>
+                <polygon points="${area}" fill="url(#lineGradient)" />
+                <polyline points="${points}" fill="none" stroke="#3b82f6" stroke-width="2" />
+                ${data.map((d, i) => {
+                    const x = (i / (data.length - 1)) * 100;
+                    const y = 45 - ((d.count / maxCount) * 35);
+                    return `<circle cx="${x}" cy="${y}" r="2" fill="#1e40af" />`;
+                }).join('')}
             `;
         }
 
@@ -1177,9 +1866,35 @@
                     render();
                 };
             });
+            
+            // Event listeners para filtros dos cards de métricas
+            document.querySelectorAll('.stat-card[data-filter]').forEach(card => {
+                card.onclick = () => {
+                    const filter = card.dataset.filter;
+                    const rows = document.querySelectorAll('.rnc-row');
+                    
+                    rows.forEach(row => {
+                        const rncId = parseInt(row.dataset.rncId);
+                        const rnc = state.rncs.find(r => r.id === rncId);
+                        
+                        if (filter === 'all' || rnc.status === filter) {
+                            row.style.display = '';
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                    
+                    // Scroll suave para a tabela
+                    const table = document.querySelector('.card table');
+                    if (table) {
+                        table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                };
+            });
         }
 
         render();
     </script>
 </body>
+
 </html>
