@@ -1948,10 +1948,36 @@
                         <label>Ações de Contenção Imediatas</label>
                         <textarea rows="4" id="d3-acao">${rnc.d3.acaoContemcao}</textarea>
                     </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Quantidade de Peças em Estoque</label>
+                            <input type="number" min="0" id="d3-estoque" value="${rnc.d3.quantidadeEstoque ?? ''}">
+                        </div>
+                        <div class="form-group">
+                            <label>Quantidade de Peças Inspecionadas</label>
+                            <input type="number" min="0" id="d3-inspecionada" value="${rnc.d3.quantidadeInspecionada ?? ''}">
+                        </div>
+                        <div class="form-group">
+                            <label>Quantidade de Peças Não Conformes</label>
+                            <input type="number" min="0" id="d3-nao-conforme" value="${rnc.d3.quantidadeNaoConforme ?? ''}">
+                        </div>
+                        <div class="form-group">
+                            <label>Anexo – Alerta Assinado</label>
+                            <input type="file" id="d3-alerta-arquivo" accept=".pdf,image/*">
+                            ${rnc.d3.anexoAlertaAssinadoNome ? `
+                                <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                                    <span style="font-size:0.8125rem; color:#475569;">Anexo atual: ${escapeHtml(rnc.d3.anexoAlertaAssinadoNome)}</span>
+                                    <button type="button" class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.75rem;" onclick="removerAnexoD3()">Remover</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Evidências</label>
                         <input type="text" id="d3-evidencia" value="${rnc.d3.evidencia}">
                     </div>
+                    <div id="d3-validacao-msg" style="margin-bottom:1rem;"></div>
+                    <button type="button" class="btn btn-primary" id="d3-etapa-concluida-btn" onclick="concluirEtapaD3()" disabled>Etapa Concluída</button>
                     ${prazo.reprazo1 ? `
                         <div class="alert alert-warning">
                             <strong>Justificativa Re-prazo 1:</strong> ${prazo.just1}
@@ -2104,6 +2130,113 @@
             return { label: 'Em atraso', className: 'red' };
         }
 
+        function validarCamposD3({ quantidadeEstoque, quantidadeInspecionada, quantidadeNaoConforme, anexoPresente }) {
+            if (quantidadeEstoque === '' || quantidadeInspecionada === '' || quantidadeNaoConforme === '' || !anexoPresente) {
+                return { valido: false, mensagem: 'Preencha todos os campos obrigatórios da contenção para concluir a etapa.' };
+            }
+            const estoque = Number(quantidadeEstoque);
+            const inspecionada = Number(quantidadeInspecionada);
+            const naoConforme = Number(quantidadeNaoConforme);
+            if (inspecionada > estoque) {
+                return { valido: false, mensagem: 'Quantidade inspecionada deve ser menor ou igual à quantidade em estoque.' };
+            }
+            if (naoConforme > inspecionada) {
+                return { valido: false, mensagem: 'Quantidade não conforme deve ser menor ou igual à quantidade inspecionada.' };
+            }
+            return { valido: true, mensagem: 'Campos válidos. A etapa pode ser concluída.' };
+        }
+
+        function atualizarEstadoConclusaoD3() {
+            const estoqueInput = document.getElementById('d3-estoque');
+            const inspecionadaInput = document.getElementById('d3-inspecionada');
+            const naoConformeInput = document.getElementById('d3-nao-conforme');
+            const anexoInput = document.getElementById('d3-alerta-arquivo');
+            const concluirBtn = document.getElementById('d3-etapa-concluida-btn');
+            const msg = document.getElementById('d3-validacao-msg');
+            if (!estoqueInput || !inspecionadaInput || !naoConformeInput || !anexoInput || !concluirBtn || !msg) {
+                console.warn('Campos obrigatórios da D3 não encontrados para validação dinâmica.');
+                return;
+            }
+
+            const anexoPresente = (anexoInput.files && anexoInput.files.length > 0) || !!state.selectedRNC?.d3?.anexoAlertaAssinadoNome;
+            const validacao = validarCamposD3({
+                quantidadeEstoque: estoqueInput.value,
+                quantidadeInspecionada: inspecionadaInput.value,
+                quantidadeNaoConforme: naoConformeInput.value,
+                anexoPresente
+            });
+
+            const etapaConcluida = !!state.selectedRNC?.d3?.etapaConcluida;
+            concluirBtn.disabled = etapaConcluida || !validacao.valido;
+            msg.textContent = etapaConcluida ? 'Etapa D3 já concluída.' : validacao.mensagem;
+            msg.style.color = etapaConcluida || validacao.valido ? '#065f46' : '#92400e';
+            msg.style.background = etapaConcluida || validacao.valido ? '#d1fae5' : '#fef3c7';
+            msg.style.border = `1px solid ${(etapaConcluida || validacao.valido) ? '#10b981' : '#f59e0b'}`;
+            msg.style.padding = '0.75rem';
+            msg.style.borderRadius = '8px';
+        }
+
+        function lerArquivoBase64(file, contexto = 'arquivo') {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result || '');
+                reader.onerror = () => {
+                    console.warn(`Falha ao converter ${contexto} para base64.`);
+                    resolve(null);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function removerAnexoD3() {
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            state.rncs[rncIndex].d3.anexoAlertaAssinadoNome = '';
+            state.rncs[rncIndex].d3.anexoAlertaAssinadoConteudo = '';
+            state.rncs[rncIndex].d3.etapaConcluida = false;
+            state.selectedRNC = state.rncs[rncIndex];
+            await salvarRNCNoFirebase(state.selectedRNC);
+            render();
+        }
+
+        async function concluirEtapaD3() {
+            const estoqueInput = document.getElementById('d3-estoque');
+            const inspecionadaInput = document.getElementById('d3-inspecionada');
+            const naoConformeInput = document.getElementById('d3-nao-conforme');
+            const anexoInput = document.getElementById('d3-alerta-arquivo');
+            const anexoPresente = (anexoInput.files && anexoInput.files.length > 0) || !!state.selectedRNC?.d3?.anexoAlertaAssinadoNome;
+            const validacao = validarCamposD3({
+                quantidadeEstoque: estoqueInput.value,
+                quantidadeInspecionada: inspecionadaInput.value,
+                quantidadeNaoConforme: naoConformeInput.value,
+                anexoPresente
+            });
+            if (!validacao.valido) {
+                alert(validacao.mensagem);
+                return;
+            }
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            state.rncs[rncIndex].d3.quantidadeEstoque = estoqueInput.value;
+            state.rncs[rncIndex].d3.quantidadeInspecionada = inspecionadaInput.value;
+            state.rncs[rncIndex].d3.quantidadeNaoConforme = naoConformeInput.value;
+            if (anexoInput && anexoInput.files && anexoInput.files.length > 0) {
+                const arquivo = anexoInput.files[0];
+                const base64 = await lerArquivoBase64(arquivo, 'anexo D3');
+                if (base64 === null) {
+                    alert('Falha ao processar o anexo da D3. Tente novamente.');
+                    return;
+                }
+                state.rncs[rncIndex].d3.anexoAlertaAssinadoNome = arquivo.name;
+                state.rncs[rncIndex].d3.anexoAlertaAssinadoConteudo = base64;
+            }
+            state.rncs[rncIndex].d3.etapaConcluida = true;
+            state.selectedRNC = state.rncs[rncIndex];
+            const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+            alert(salvoNoFirebase ? 'Etapa D3 concluída com sucesso!' : 'Etapa D3 concluída localmente. Firebase indisponível.');
+            render();
+        }
+
         function abrirCadastroAcaoD5() {
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay active';
@@ -2203,6 +2336,20 @@
             } else if (phaseId === 'd3') {
                 state.rncs[rncIndex].d3.acaoContemcao = document.getElementById('d3-acao').value;
                 state.rncs[rncIndex].d3.evidencia = document.getElementById('d3-evidencia').value;
+                state.rncs[rncIndex].d3.quantidadeEstoque = document.getElementById('d3-estoque').value;
+                state.rncs[rncIndex].d3.quantidadeInspecionada = document.getElementById('d3-inspecionada').value;
+                state.rncs[rncIndex].d3.quantidadeNaoConforme = document.getElementById('d3-nao-conforme').value;
+                const anexoInput = document.getElementById('d3-alerta-arquivo');
+                if (anexoInput && anexoInput.files && anexoInput.files.length > 0) {
+                    const arquivo = anexoInput.files[0];
+                    const base64 = await lerArquivoBase64(arquivo, 'anexo D3');
+                    if (base64 === null) {
+                        alert('Falha ao processar o anexo da D3. Tente novamente.');
+                        return;
+                    }
+                    state.rncs[rncIndex].d3.anexoAlertaAssinadoNome = arquivo.name;
+                    state.rncs[rncIndex].d3.anexoAlertaAssinadoConteudo = base64;
+                }
             } else if (phaseId === 'd4') {
                 state.rncs[rncIndex].d4.why1 = document.getElementById('d4-why1').value;
                 state.rncs[rncIndex].d4.why2 = document.getElementById('d4-why2').value;
@@ -2408,7 +2555,16 @@
                         },
                         d1: { equipe: equipeD1, lider: analistaQualidade },
                         d2: { problema: "", is5w2h: "" },
-                        d3: { acaoContemcao: "", evidencia: "" },
+                        d3: {
+                            acaoContemcao: "",
+                            evidencia: "",
+                            quantidadeEstoque: "",
+                            quantidadeInspecionada: "",
+                            quantidadeNaoConforme: "",
+                            anexoAlertaAssinadoNome: "",
+                            anexoAlertaAssinadoConteudo: "",
+                            etapaConcluida: false
+                        },
                         d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
                         d5: { acoesCorretivas: "" },
                         d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
@@ -2432,6 +2588,30 @@
                     render();
                     alert(salvoNoFirebase ? 'RNC cadastrada com sucesso!' : 'RNC cadastrada localmente. Firebase indisponível.');
                 };
+            }
+
+            const d3Estoque = document.getElementById('d3-estoque');
+            const d3Inspecionada = document.getElementById('d3-inspecionada');
+            const d3NaoConforme = document.getElementById('d3-nao-conforme');
+            const d3Anexo = document.getElementById('d3-alerta-arquivo');
+            if (d3Estoque && d3Inspecionada && d3NaoConforme && d3Anexo) {
+                [d3Estoque, d3Inspecionada, d3NaoConforme].forEach(el => el.oninput = () => {
+                    if (state.selectedRNC?.d3) {
+                        state.selectedRNC.d3.etapaConcluida = false;
+                        const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+                        if (rncIndex !== -1) state.rncs[rncIndex].d3.etapaConcluida = false;
+                    }
+                    atualizarEstadoConclusaoD3();
+                });
+                d3Anexo.onchange = () => {
+                    if (state.selectedRNC?.d3) {
+                        state.selectedRNC.d3.etapaConcluida = false;
+                        const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+                        if (rncIndex !== -1) state.rncs[rncIndex].d3.etapaConcluida = false;
+                    }
+                    atualizarEstadoConclusaoD3();
+                };
+                atualizarEstadoConclusaoD3();
             }
 
             const filtroStatus = document.getElementById('controleFiltroStatus');
