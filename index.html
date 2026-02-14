@@ -1134,6 +1134,18 @@
             { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", email: "maria.lima@empresa.com" },
             { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", email: "joao.mendes@empresa.com" }
         ];
+        let modosFalhaBase = [
+            { id: 1, nome: "Dimensional", categoria: "Produto", setor: "Usinagem" },
+            { id: 2, nome: "Acabamento", categoria: "Processo", setor: "Pintura" },
+            { id: 3, nome: "Montagem", categoria: "Processo", setor: "Montagem" }
+        ];
+        let clientesBase = [
+            { id: 1, nome: "AutoParts Brasil", segmento: "Automotivo", planta: "Planta A" },
+            { id: 2, nome: "Metal Solutions", segmento: "Metalúrgico", planta: "Planta B" },
+            { id: 3, nome: "TechParts Ltd", segmento: "Automotivo", planta: "Planta C" },
+            { id: 4, nome: "Indústria XYZ", segmento: "Industrial", planta: "Planta A" },
+            { id: 5, nome: "MegaAuto SA", segmento: "Automotivo", planta: "Planta B" }
+        ];
 
         const phases = [
             { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
@@ -1206,6 +1218,259 @@
                 const pessoa = pessoasBase.find(item => item.nome === nome) || { id: null, nome, cargo: "-", setor: "-", planta: "-" };
                 return { pessoa, funcaoRnc: nome === rnc.d1?.lider ? "Analista da Qualidade" : "Outros Envolvidos" };
             });
+        }
+
+        function isRNCAtiva(rnc) {
+            return rnc.faseAtual !== 'd8';
+        }
+
+        function getCadastroConfig(tipo) {
+            if (tipo === 'pessoas') {
+                return {
+                    titulo: 'Pessoas',
+                    descricao: 'Base de integrantes para equipes de RNC',
+                    fields: [
+                        { key: 'nome', label: 'Nome', type: 'text', required: true },
+                        { key: 'cargo', label: 'Função / Cargo', type: 'text', required: true },
+                        { key: 'setor', label: 'Setor', type: 'text', required: true },
+                        { key: 'planta', label: 'Planta', type: 'text', required: true },
+                        { key: 'gerente', label: 'Gerente', type: 'text', required: true },
+                        { key: 'email', label: 'E-mail', type: 'email', required: true }
+                    ]
+                };
+            }
+            if (tipo === 'modos-falha') {
+                return {
+                    titulo: 'Modo de Falha',
+                    descricao: 'Tipos de falha padronizados para RNC',
+                    fields: [
+                        { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
+                        { key: 'categoria', label: 'Categoria', type: 'text', required: true },
+                        { key: 'setor', label: 'Setor', type: 'text', required: true }
+                    ]
+                };
+            }
+            return {
+                titulo: 'Cliente',
+                descricao: 'Clientes reutilizáveis nas RNCs',
+                fields: [
+                    { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
+                    { key: 'segmento', label: 'Segmento', type: 'text', required: true },
+                    { key: 'planta', label: 'Planta', type: 'text', required: true }
+                ]
+            };
+        }
+
+        function getCadastroLista(tipo) {
+            if (tipo === 'pessoas') return pessoasBase;
+            if (tipo === 'modos-falha') return modosFalhaBase;
+            return clientesBase;
+        }
+
+        function getCadastroItemById(tipo, id) {
+            return getCadastroLista(tipo).find(item => item.id === Number(id));
+        }
+
+        function getNextId(listaBase) {
+            return Math.max(0, ...listaBase.map(x => Number(x.id) || 0)) + 1;
+        }
+
+        function bloqueioExclusaoCadastro(tipo, item) {
+            if (!item) return null;
+            if (tipo === 'pessoas') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && (
+                    rnc.equipeResponsavel?.responsavelContencaoId === item.id ||
+                    rnc.equipeResponsavel?.analistaEngenhariaId === item.id ||
+                    rnc.equipeResponsavel?.analistaQualidadeId === item.id ||
+                    (rnc.equipeResponsavel?.outrosEnvolvidosIds || []).includes(item.id) ||
+                    (rnc.d5?.listaAcoes || []).some(acao => acao.responsavelId === item.id || acao.responsavel === item.nome) ||
+                    rnc.responsavel === item.nome ||
+                    (rnc.d1?.lider === item.nome) ||
+                    (rnc.d1?.equipe || '').split(',').map(nome => nome.trim()).includes(item.nome)
+                ));
+                if (vinculado) return 'Não é possível excluir: item vinculado a RNC ativa.';
+            }
+            if (tipo === 'modos-falha') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && rnc.tipoFalha === item.nome);
+                if (vinculado) return 'Não é possível excluir: modo de falha vinculado a RNC ativa.';
+            }
+            if (tipo === 'clientes') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && rnc.cliente === item.nome);
+                if (vinculado) return 'Não é possível excluir: cliente vinculado a RNC ativa.';
+            }
+            return null;
+        }
+
+        function propagarRenomeacaoCadastro(tipo, nomeAnterior, nomeNovo) {
+            if (!nomeAnterior || nomeAnterior === nomeNovo) return;
+            if (tipo === 'pessoas') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.responsavel === nomeAnterior) rnc.responsavel = nomeNovo;
+                    if (rnc.d1?.lider === nomeAnterior) rnc.d1.lider = nomeNovo;
+                    if (rnc.d1?.equipe) {
+                        rnc.d1.equipe = rnc.d1.equipe
+                            .split(',')
+                            .map(nome => nome.trim() === nomeAnterior ? nomeNovo : nome.trim())
+                            .join(', ');
+                    }
+                    (rnc.d5?.listaAcoes || []).forEach(acao => {
+                        if (acao.responsavel === nomeAnterior) acao.responsavel = nomeNovo;
+                    });
+                });
+            } else if (tipo === 'modos-falha') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.tipoFalha === nomeAnterior) rnc.tipoFalha = nomeNovo;
+                });
+            } else if (tipo === 'clientes') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.cliente === nomeAnterior) rnc.cliente = nomeNovo;
+                });
+            }
+        }
+
+        function abrirModalListagemCadastro(tipo) {
+            const config = getCadastroConfig(tipo);
+            const lista = getCadastroLista(tipo);
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1002';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 900px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">Gerenciar ${config.titulo}</h2>
+                            <p style="color:#64748b; margin-top:0.5rem;">${config.descricao}</p>
+                        </div>
+                        <button class="modal-close" data-close-cadastro-lista>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    ${config.fields.map(field => `<th>${field.label}</th>`).join('')}
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${lista.length === 0 ? `
+                                    <tr><td colspan="${config.fields.length + 1}" style="text-align:center; color:#64748b;">Nenhum item cadastrado.</td></tr>
+                                ` : lista.map(item => `
+                                    <tr>
+                                        ${config.fields.map(field => `<td>${escapeHtml(item[field.key] || '')}</td>`).join('')}
+                                        <td style="display:flex; gap:0.5rem;">
+                                            <button type="button" class="btn btn-secondary btn-editar-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Editar</button>
+                                            <button type="button" class="btn btn-warning btn-excluir-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Excluir</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
+                            <button type="button" class="btn btn-primary btn-novo-cadastro-item" data-cadastro-tipo="${tipo}">Novo Cadastro</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            overlay.querySelector('[data-close-cadastro-lista]').onclick = () => overlay.remove();
+            overlay.querySelector('.btn-novo-cadastro-item').onclick = () => abrirModalFormularioCadastro(tipo, null, overlay);
+            overlay.querySelectorAll('.btn-editar-cadastro-item').forEach(btn => {
+                btn.onclick = () => abrirModalFormularioCadastro(btn.dataset.cadastroTipo, btn.dataset.itemId, overlay);
+            });
+            overlay.querySelectorAll('.btn-excluir-cadastro-item').forEach(btn => {
+                btn.onclick = () => {
+                    const item = getCadastroItemById(btn.dataset.cadastroTipo, btn.dataset.itemId);
+                    if (!item) return;
+                    const bloqueio = bloqueioExclusaoCadastro(btn.dataset.cadastroTipo, item);
+                    if (bloqueio) {
+                        alert(bloqueio);
+                        return;
+                    }
+                    if (!confirm(`Deseja excluir "${item.nome}"?`)) return;
+                    const listaBase = getCadastroLista(btn.dataset.cadastroTipo);
+                    const idx = listaBase.findIndex(x => x.id === item.id);
+                    if (idx !== -1) listaBase.splice(idx, 1);
+                    overlay.remove();
+                    abrirModalListagemCadastro(btn.dataset.cadastroTipo);
+                    render();
+                };
+            });
+        }
+
+        function abrirModalFormularioCadastro(tipo, itemId, parentOverlay) {
+            const config = getCadastroConfig(tipo);
+            const item = itemId ? getCadastroItemById(tipo, itemId) : null;
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 720px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">${item ? 'Editar' : 'Novo'} ${config.titulo}</h2>
+                        </div>
+                        <button class="modal-close" data-close-cadastro-form>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="cadastroItemForm">
+                            ${config.fields.map(field => `
+                                <div class="form-group">
+                                    <label>${field.label} ${field.required ? '*' : ''}</label>
+                                    <input type="${field.type}" name="${field.key}" value="${escapeHtml(item?.[field.key] || '')}" ${field.required ? 'required' : ''}>
+                                </div>
+                            `).join('')}
+                            <div style="display:flex; gap:0.75rem;">
+                                <button type="button" class="btn btn-secondary" data-close-cadastro-form>Cancelar</button>
+                                <button type="submit" class="btn btn-success">Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+            overlay.querySelectorAll('[data-close-cadastro-form]').forEach(btn => btn.onclick = () => overlay.remove());
+            overlay.querySelector('#cadastroItemForm').onsubmit = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const payload = {};
+                config.fields.forEach(field => payload[field.key] = String(formData.get(field.key) || '').trim());
+                const invalid = config.fields.some(field => field.required && !payload[field.key]);
+                if (invalid) {
+                    alert('Preencha todos os campos obrigatórios.');
+                    return;
+                }
+                const listaBase = getCadastroLista(tipo);
+                if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+                    alert('Informe um e-mail válido.');
+                    return;
+                }
+                if (payload.nome) {
+                    const normalize = (nome) => String(nome || '').trim().replace(/\s+/g, ' ').toLowerCase();
+                    const nomeJaExiste = listaBase.some(registro => registro.id !== item?.id && normalize(registro.nome) === normalize(payload.nome));
+                    if (nomeJaExiste) {
+                        alert('Já existe um cadastro com este nome.');
+                        return;
+                    }
+                }
+                if (item) {
+                    const idx = listaBase.findIndex(x => x.id === item.id);
+                    if (idx !== -1) {
+                        const nomeAnterior = listaBase[idx].nome;
+                        listaBase[idx] = { ...listaBase[idx], ...payload };
+                        propagarRenomeacaoCadastro(tipo, nomeAnterior, listaBase[idx].nome);
+                    }
+                } else {
+                    const nextId = getNextId(listaBase);
+                    listaBase.push({ id: nextId, ...payload });
+                }
+                overlay.remove();
+                if (parentOverlay) parentOverlay.remove();
+                abrirModalListagemCadastro(tipo);
+                render();
+            };
         }
 
         async function carregarRNCsDoFirebase() {
@@ -1323,7 +1588,7 @@
                             <span>Cadastro RNC (D1)</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="cadastro-pessoas">
-                            <span>Cadastro de Pessoas</span>
+                            <span>Cadastros Base</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
                             <span>Relatórios</span>
@@ -1342,7 +1607,7 @@
                 : state.currentPage === 'cadastro-rnc'
                     ? 'Cadastro RNC (D1)'
                     : state.currentPage === 'cadastro-pessoas'
-                        ? 'Cadastro de Pessoas'
+                        ? 'Cadastros Base'
                     : state.currentPage === 'relatorios'
                         ? 'Relatórios Qualificados'
                     : 'Controle 8D';
@@ -1679,7 +1944,10 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Cliente</label>
-                                <input type="text" name="cliente" required>
+                                <select name="cliente" required>
+                                    <option value="">Selecione</option>
+                                    ${clientesBase.map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Código da Peça</label>
@@ -1689,9 +1957,7 @@
                                 <label>Tipo de Falha</label>
                                 <select name="tipoFalha" required>
                                     <option value="">Selecione</option>
-                                    <option value="Dimensional">Dimensional</option>
-                                    <option value="Acabamento">Acabamento</option>
-                                    <option value="Montagem">Montagem</option>
+                                    ${modosFalhaBase.map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -1766,47 +2032,20 @@
 
         function renderCadastroPessoas() {
             return `
-                <h1 class="page-title">Cadastro de Pessoas</h1>
-                <div class="card">
-                    <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Base de Equipe</h3>
-                    <form id="cadastroPessoaForm">
-                        <input type="hidden" id="pessoa-id">
-                        <div class="grid-2">
-                            <div class="form-group"><label>Nome</label><input type="text" id="pessoa-nome" required></div>
-                            <div class="form-group"><label>Função / Cargo</label><input type="text" id="pessoa-cargo" required></div>
-                            <div class="form-group"><label>Setor</label><input type="text" id="pessoa-setor" required></div>
-                            <div class="form-group"><label>Planta</label><input type="text" id="pessoa-planta" required></div>
-                            <div class="form-group"><label>Gerente</label><input type="text" id="pessoa-gerente" required></div>
-                            <div class="form-group"><label>E-mail</label><input type="email" id="pessoa-email" required></div>
-                        </div>
-                        <div style="display:flex; gap:0.75rem;">
-                            <button type="submit" class="btn btn-primary">Salvar Pessoa</button>
-                            <button type="button" class="btn btn-secondary" id="limparPessoaForm">Limpar</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="card">
-                    <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem;">Pessoas Cadastradas</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Nome</th><th>Cargo</th><th>Setor</th><th>Planta</th><th>Gerente</th><th>E-mail</th><th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${pessoasBase.map(pessoa => `
-                                <tr>
-                                    <td>${escapeHtml(pessoa.nome)}</td>
-                                    <td>${escapeHtml(pessoa.cargo)}</td>
-                                    <td>${escapeHtml(pessoa.setor)}</td>
-                                    <td>${escapeHtml(pessoa.planta)}</td>
-                                    <td>${escapeHtml(pessoa.gerente)}</td>
-                                    <td>${escapeHtml(pessoa.email)}</td>
-                                    <td><button type="button" class="btn btn-secondary btn-editar-pessoa" data-pessoa-id="${pessoa.id}" style="padding:0.45rem 0.8rem; font-size:0.8rem;">Editar</button></td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                <h1 class="page-title">Cadastros Base</h1>
+                <div class="stats-grid">
+                    ${['pessoas', 'modos-falha', 'clientes'].map(tipo => {
+                        const config = getCadastroConfig(tipo);
+                        const total = getCadastroLista(tipo).length;
+                        return `
+                            <div class="card">
+                                <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 0.5rem;">${config.titulo}</h3>
+                                <p style="color:#64748b; margin-bottom: 1rem;">${config.descricao}</p>
+                                <p style="font-size:0.875rem; color:#475569; margin-bottom: 1rem;">Itens cadastrados: <strong>${total}</strong></p>
+                                <button type="button" class="btn btn-primary btn-gerenciar-cadastro" data-cadastro-tipo="${tipo}">Gerenciar</button>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -2697,56 +2936,8 @@
                 };
             }
 
-            const cadastroPessoaForm = document.getElementById('cadastroPessoaForm');
-            if (cadastroPessoaForm) {
-                cadastroPessoaForm.onsubmit = (e) => {
-                    e.preventDefault();
-                    const idInput = document.getElementById('pessoa-id');
-                    const pessoaId = Number(idInput.value);
-                    const pessoaData = {
-                        nome: document.getElementById('pessoa-nome').value,
-                        cargo: document.getElementById('pessoa-cargo').value,
-                        setor: document.getElementById('pessoa-setor').value,
-                        planta: document.getElementById('pessoa-planta').value,
-                        gerente: document.getElementById('pessoa-gerente').value,
-                        email: document.getElementById('pessoa-email').value
-                    };
-                    if (pessoaId) {
-                        const idx = pessoasBase.findIndex(p => p.id === pessoaId);
-                        if (idx !== -1) pessoasBase[idx] = { ...pessoasBase[idx], ...pessoaData };
-                    } else {
-                        const nextId = (pessoasBase.length > 0 ? Math.max(...pessoasBase.map(p => p.id || 0)) : 0) + 1;
-                        pessoasBase.push({ id: nextId, ...pessoaData });
-                    }
-                    cadastroPessoaForm.reset();
-                    idInput.value = '';
-                    render();
-                    alert('Pessoa salva com sucesso!');
-                };
-            }
-
-            const limparPessoaForm = document.getElementById('limparPessoaForm');
-            if (limparPessoaForm) {
-                limparPessoaForm.onclick = () => {
-                    const form = document.getElementById('cadastroPessoaForm');
-                    if (form) form.reset();
-                    const idInput = document.getElementById('pessoa-id');
-                    if (idInput) idInput.value = '';
-                };
-            }
-
-            document.querySelectorAll('.btn-editar-pessoa').forEach(btn => {
-                btn.onclick = () => {
-                    const pessoa = getPessoaById(btn.dataset.pessoaId);
-                    if (!pessoa) return;
-                    document.getElementById('pessoa-id').value = pessoa.id;
-                    document.getElementById('pessoa-nome').value = pessoa.nome;
-                    document.getElementById('pessoa-cargo').value = pessoa.cargo;
-                    document.getElementById('pessoa-setor').value = pessoa.setor;
-                    document.getElementById('pessoa-planta').value = pessoa.planta;
-                    document.getElementById('pessoa-gerente').value = pessoa.gerente;
-                    document.getElementById('pessoa-email').value = pessoa.email;
-                };
+            document.querySelectorAll('.btn-gerenciar-cadastro').forEach(btn => {
+                btn.onclick = () => abrirModalListagemCadastro(btn.dataset.cadastroTipo);
             });
 
             const d3Estoque = document.getElementById('d3-estoque');
