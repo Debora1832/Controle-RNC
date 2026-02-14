@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema RNC 8D - Gestão de Qualidade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        
+        /* SIDEBAR */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 280px;
+            background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+            color: white;
+            overflow-y: auto;
+            box-shadow: 4px 0 24px rgba(30, 64, 175, 0.15);
+            z-index: 100;
+        }
+        
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+        
+        .user-info {
+            padding: 1.25rem 1.5rem;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 1.5rem;
+            border-radius: 12px;
+        }
+        
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .nav-menu {
+            padding: 1rem;
+        }
+        
+        .nav-item {
+            padding: 0.875rem 1rem;
+            margin: 0.25rem 0;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            transition: all 0.25s;
+            font-weight: 500;
+        }
+        
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+        }
+        
+        .nav-badge {
+            margin-left: auto;
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.625rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        
+        /* MAIN CONTENT */
+        .main-content {
+            margin-left: 280px;
+            min-height: 100vh;
+        }
+        
+        .top-bar {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1.25rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        
+        .content-area {
+            padding: 2rem;
+        }
+        
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* CARDS */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            margin-bottom: 1.5rem;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+        }
+        
+        .stat-value {
+            font-size: 2.75rem;
+            font-weight: 900;
+            color: #1e40af;
+        }
+        
+        /* TABELA */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            color: #475569;
+            background: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        td {
+            padding: 1.125rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        tbody tr {
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        tbody tr:hover {
+            background: #f8fafc;
+        }
+        
+        /* BADGES */
+        .badge {
+            display: inline-flex;
+            padding: 0.375rem 0.875rem;
+            border-radius: 10px;
+            font-size: 0.8125rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .badge.blue { background: #dbeafe; color: #1e40af; }
+        .badge.green { background: #d1fae5; color: #065f46; }
+        .badge.red { background: #fee2e2; color: #991b1b; }
+        .badge.orange { background: #fed7aa; color: #92400e; }
+        
+        /* BOTÕES */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9375rem;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+        
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+            width: 95%;
+            max-width: 1400px;
+        }
+        
+        .modal-header {
+            padding: 2rem;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+        }
+        
+        .modal-title {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        
+        .modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            border: none;
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: #64748b;
+        }
+        
+        .modal-body {
+            padding: 2rem;
+        }
+        
+        .modal-tabs {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 2rem;
+            gap: 0.5rem;
+            overflow-x: auto;
+        }
+        
+        .modal-tab {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9375rem;
+            color: #64748b;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
+        }
+        
+        .modal-tab.active {
+            color: #1e40af;
+            border-bottom-color: #1e40af;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* PHASE TRACKER */
+        .phase-tracker {
+            display: flex;
+            justify-content: space-between;
+            margin: 2rem 0;
+            padding: 0 1rem;
+        }
+        
+        .phase-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        
+        .phase-step::after {
+            content: '';
+            position: absolute;
+            top: 1.5rem;
+            left: 50%;
+            width: 100%;
+            height: 3px;
+            background: #e2e8f0;
+            z-index: 0;
+        }
+        
+        .phase-step:last-child::after {
+            display: none;
+        }
+        
+        .phase-circle {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 0.5rem;
+            font-weight: 700;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .phase-circle.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .phase-circle.completed {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        /* 8D SECTION */
+        .d8-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .d8-section.active {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(37, 99, 235, 0.02) 100%);
+        }
+        
+        .d8-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .d8-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        
+        .prazo-info {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .prazo-box {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+        }
+        
+        .prazo-box.original {
+            border-color: #3b82f6;
+        }
+        
+        .prazo-box.reprazo1 {
+            border-color: #f59e0b;
+        }
+        
+        .prazo-box.reprazo2 {
+            border-color: #ef4444;
+        }
+        
+        .prazo-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        
+        .prazo-date {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-top: 0.25rem;
+        }
+        
+        /* FORMS */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.9375rem;
+            margin-bottom: 0.5rem;
+            color: #334155;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9375rem;
+            font-family: inherit;
+            background: white;
+        }
+        
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-warning {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            color: #92400e;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+        
+        /* LOGIN */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+        }
+        
+        .login-box {
+            background: white;
+            padding: 3rem;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 460px;
+        }
+        
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            font-size: 2rem;
+            font-weight: 900;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+        // ESTADO GLOBAL
+        let state = {
+            currentPage: 'login',
+            currentUser: null,
+            selectedRNC: null,
+            activeTab: 'd1',
+            rncs: [
+                {
+                    id: 1,
+                    numero: "RNC-2026-001",
+                    cliente: "AutoParts Brasil",
+                    codigoPeca: "P-12345",
+                    tipoFalha: "Dimensional",
+                    responsavel: "Débora Silva",
+                    quantidade: 120,
+                    faseAtual: "d3",
+                    status: "AT_RISK",
+                    prioridade: "Alta",
+                    setor: "Usinagem",
+                    dataAbertura: "2026-02-10",
+                    descricao: "Peça fora da tolerância dimensional",
+                    d1: { equipe: "Débora Silva, Lucas Santos, Marcos Oliveira", lider: "Débora Silva" },
+                    d2: { problema: "Dimensional fora de especificação no furo Ø10mm", is5w2h: "Sim" },
+                    d3: { acaoContemcao: "Inspeção 100% do estoque", evidencia: "Relatório de inspeção anexo" },
+                    d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
+                    d5: { acoesCorretivas: "" },
+                    d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
+                    d7: { acoesPreventivas: "" },
+                    d8: { reconhecimento: "", licaoAprendida: "" },
+                    prazos: {
+                        d1: { original: "2026-02-10", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d2: { original: "2026-02-10", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d3: { original: "2026-02-11", sla: "24 horas", reprazo1: "2026-02-13", reprazo2: null, just1: "Aguardando laboratório", just2: "" },
+                        d4: { original: "2026-02-14", sla: "3 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d5: { original: "2026-02-16", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d6: { original: "2026-02-23", sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d7: { original: "2026-02-25", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d8: { original: "2026-02-26", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                    }
+                },
+                {
+                    id: 2,
+                    numero: "RNC-2026-002",
+                    cliente: "Metal Solutions",
+                    codigoPeca: "P-67890",
+                    tipoFalha: "Acabamento",
+                    responsavel: "Marcos Oliveira",
+                    quantidade: 45,
+                    faseAtual: "d4",
+                    status: "ON_TIME",
+                    prioridade: "Média",
+                    setor: "Pintura",
+                    dataAbertura: "2026-02-11",
+                    descricao: "Falha no acabamento superficial",
+                    d1: { equipe: "Marcos Oliveira, Pedro Costa", lider: "Marcos Oliveira" },
+                    d2: { problema: "Bolhas na pintura", is5w2h: "Sim" },
+                    d3: { acaoContemcao: "Retrabalho das peças", evidencia: "Fotos anexas" },
+                    d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
+                    d5: { acoesCorretivas: "" },
+                    d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
+                    d7: { acoesPreventivas: "" },
+                    d8: { reconhecimento: "", licaoAprendida: "" },
+                    prazos: {
+                        d1: { original: "2026-02-11", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d2: { original: "2026-02-11", sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d3: { original: "2026-02-12", sla: "24 horas", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d4: { original: "2026-02-15", sla: "3 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d5: { original: "2026-02-17", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d6: { original: "2026-02-24", sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d7: { original: "2026-02-26", sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                        d8: { original: "2026-02-27", sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                    }
+                }
+            ]
+        };
+
+        const users = [
+            { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", initials: "DS" }
+        ];
+
+        const phases = [
+            { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
+            { id: 'd2', name: 'D2 - Problema', short: 'D2' },
+            { id: 'd3', name: 'D3 - Contenção', short: 'D3' },
+            { id: 'd4', name: 'D4 - Causa Raiz', short: 'D4' },
+            { id: 'd5', name: 'D5 - Ações Corretivas', short: 'D5' },
+            { id: 'd6', name: 'D6 - Implementação', short: 'D6' },
+            { id: 'd7', name: 'D7 - Prevenção', short: 'D7' },
+            { id: 'd8', name: 'D8 - Encerramento', short: 'D8' }
+        ];
+
+        function render() {
+            const app = document.getElementById('app');
+            
+            if (state.currentPage === 'login') {
+                app.innerHTML = renderLogin();
+            } else {
+                app.innerHTML = `
+                    ${renderSidebar()}
+                    <div class="main-content">
+                        ${renderTopBar()}
+                        <div class="content-area">
+                            ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
+                            ${state.currentPage === 'controle' ? renderControle() : ''}
+                        </div>
+                    </div>
+                    ${renderModal()}
+                `;
+            }
+            
+            attachEventListeners();
+        }
+
+        function renderLogin() {
+            return `
+                <div class="login-container">
+                    <div class="login-box">
+                        <div class="login-logo">8D</div>
+                        <h1 style="font-size: 2rem; font-weight: 800; text-align: center; margin-bottom: 2rem;">Sistema RNC 8D</h1>
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" value="debora@empresa.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Senha</label>
+                                <input type="password" value="123" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">Acessar</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSidebar() {
+            return `
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <h2>RNC 8D System</h2>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-avatar">${state.currentUser.initials}</div>
+                        <p style="font-weight: 700;">${state.currentUser.name}</p>
+                        <p style="font-size: 0.875rem; opacity: 0.8;">${state.currentUser.role}</p>
+                    </div>
+                    <div class="nav-menu">
+                        <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
+                            <span>Dashboard</span>
+                        </div>
+                        <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle">
+                            <span>Controle 8D</span>
+                            <span class="nav-badge">${state.rncs.filter(r => r.status === 'AT_RISK').length}</span>
+                        </div>
+                        <div class="nav-item" data-page="logout" style="margin-top: 2rem; color: #ef4444;">
+                            <span>Sair</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTopBar() {
+            return `
+                <div class="top-bar">
+                    <h2 style="font-size: 1.25rem; font-weight: 700;">
+                        ${state.currentPage === 'dashboard' ? 'Dashboard' : 'Controle 8D'}
+                    </h2>
+                </div>
+            `;
+        }
+
+        function renderDashboard() {
+            const total = state.rncs.length;
+            const noPrazo = state.rncs.filter(r => r.status === "ON_TIME").length;
+            const emRisco = state.rncs.filter(r => r.status === "AT_RISK").length;
+            
+            return `
+                <h1 class="page-title">Dashboard Executivo</h1>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">Total de RNCs</p>
+                        <div class="stat-value">${total}</div>
+                    </div>
+                    <div class="stat-card">
+                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">No Prazo</p>
+                        <div class="stat-value" style="color: #059669;">${noPrazo}</div>
+                    </div>
+                    <div class="stat-card">
+                        <p style="font-size: 0.875rem; color: #64748b; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">Em Risco</p>
+                        <div class="stat-value" style="color: #dc2626;">${emRisco}</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Cliente</th>
+                                <th>Tipo</th>
+                                <th>Prioridade</th>
+                                <th>Fase</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.rncs.map(rnc => `
+                                <tr class="rnc-row" data-rnc-id="${rnc.id}">
+                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
+                                    <td>${rnc.cliente}</td>
+                                    <td>${rnc.tipoFalha}</td>
+                                    <td><span class="badge ${rnc.prioridade === 'Alta' ? 'red' : 'orange'}">${rnc.prioridade}</span></td>
+                                    <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
+                                    <td><span class="badge ${rnc.status === 'ON_TIME' ? 'green' : 'red'}">${rnc.status === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderControle() {
+            return `
+                <h1 class="page-title">Controle 8D</h1>
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Cliente</th>
+                                <th>Responsável</th>
+                                <th>Fase Atual</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.rncs.map(rnc => `
+                                <tr>
+                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
+                                    <td>${rnc.cliente}</td>
+                                    <td>${rnc.responsavel}</td>
+                                    <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
+                                    <td><span class="badge ${rnc.status === 'ON_TIME' ? 'green' : 'red'}">${rnc.status === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
+                                    <td>
+                                        <button class="btn btn-primary btn-view" data-rnc-id="${rnc.id}" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                                            Ver Detalhes
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function renderModal() {
+            if (!state.selectedRNC) return '';
+            
+            const rnc = state.selectedRNC;
+            const currentPhaseIndex = phases.findIndex(p => p.id === rnc.faseAtual);
+            
+            return `
+                <div class="modal-overlay active" id="rncModal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <div>
+                                <h2 class="modal-title">${rnc.numero} - ${rnc.cliente}</h2>
+                                <p style="color: #64748b; margin-top: 0.5rem;">Metodologia 8D de Resolução de Problemas</p>
+                            </div>
+                            <button class="modal-close" id="closeModal">×</button>
+                        </div>
+                        
+                        <div class="modal-body">
+                            <div class="phase-tracker">
+                                ${phases.map((phase, index) => `
+                                    <div class="phase-step">
+                                        <div class="phase-circle ${index < currentPhaseIndex ? 'completed' : index === currentPhaseIndex ? 'active' : ''}">
+                                            ${index < currentPhaseIndex ? '✓' : phase.short}
+                                        </div>
+                                        <p style="font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem;">${phase.name.replace(/D\d - /, '')}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            <div class="modal-tabs">
+                                ${phases.map(phase => `
+                                    <button class="modal-tab ${state.activeTab === phase.id ? 'active' : ''}" data-tab="${phase.id}">
+                                        ${phase.name}
+                                    </button>
+                                `).join('')}
+                            </div>
+                            
+                            ${phases.map(phase => `
+                                <div class="tab-content ${state.activeTab === phase.id ? 'active' : ''}">
+                                    ${renderPhaseContent(rnc, phase)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPhaseContent(rnc, phase) {
+            const prazo = rnc.prazos[phase.id];
+            const canReprazo = ['d3', 'd4', 'd5', 'd6', 'd7', 'd8'].includes(phase.id);
+            
+            let content = `
+                <div class="d8-section ${rnc.faseAtual === phase.id ? 'active' : ''}">
+                    <div class="d8-header">
+                        <h3 class="d8-title">${phase.name}</h3>
+                        <div class="prazo-info">
+                            <div class="prazo-box original">
+                                <div class="prazo-label">Prazo Original (${prazo.sla})</div>
+                                <div class="prazo-date">${new Date(prazo.original).toLocaleDateString('pt-BR')}</div>
+                            </div>
+                            ${prazo.reprazo1 ? `
+                                <div class="prazo-box reprazo1">
+                                    <div class="prazo-label">Re-prazo 1</div>
+                                    <div class="prazo-date">${new Date(prazo.reprazo1).toLocaleDateString('pt-BR')}</div>
+                                </div>
+                            ` : ''}
+                            ${prazo.reprazo2 ? `
+                                <div class="prazo-box reprazo2">
+                                    <div class="prazo-label">Re-prazo 2</div>
+                                    <div class="prazo-date">${new Date(prazo.reprazo2).toLocaleDateString('pt-BR')}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+            `;
+            
+            // Conteúdo específico de cada fase
+            if (phase.id === 'd1') {
+                content += `
+                    <div class="form-group">
+                        <label>Equipe Multifuncional</label>
+                        <textarea rows="2" id="d1-equipe">${rnc.d1.equipe}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Líder da Equipe</label>
+                        <input type="text" id="d1-lider" value="${rnc.d1.lider}">
+                    </div>
+                `;
+            } else if (phase.id === 'd2') {
+                content += `
+                    <div class="form-group">
+                        <label>Definição do Problema</label>
+                        <textarea rows="4" id="d2-problema">${rnc.d2.problema}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Análise 5W2H Completa?</label>
+                        <select id="d2-5w2h">
+                            <option value="Sim" ${rnc.d2.is5w2h === 'Sim' ? 'selected' : ''}>Sim</option>
+                            <option value="Não" ${rnc.d2.is5w2h === 'Não' ? 'selected' : ''}>Não</option>
+                        </select>
+                    </div>
+                `;
+            } else if (phase.id === 'd3') {
+                content += `
+                    <div class="form-group">
+                        <label>Ações de Contenção Imediatas</label>
+                        <textarea rows="4" id="d3-acao">${rnc.d3.acaoContemcao}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Evidências</label>
+                        <input type="text" id="d3-evidencia" value="${rnc.d3.evidencia}">
+                    </div>
+                    ${prazo.reprazo1 ? `
+                        <div class="alert alert-warning">
+                            <strong>Justificativa Re-prazo 1:</strong> ${prazo.just1}
+                        </div>
+                    ` : ''}
+                    ${prazo.reprazo2 ? `
+                        <div class="alert alert-warning">
+                            <strong>Justificativa Re-prazo 2:</strong> ${prazo.just2}
+                        </div>
+                    ` : ''}
+                `;
+            } else if (phase.id === 'd4') {
+                content += `
+                    <h4 style="font-weight: 700; margin-bottom: 1rem;">Análise 5 Porquês</h4>
+                    <div class="form-group">
+                        <label>1º Por quê?</label>
+                        <textarea rows="2" id="d4-why1">${rnc.d4.why1}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>2º Por quê?</label>
+                        <textarea rows="2" id="d4-why2">${rnc.d4.why2}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>3º Por quê?</label>
+                        <textarea rows="2" id="d4-why3">${rnc.d4.why3}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>4º Por quê?</label>
+                        <textarea rows="2" id="d4-why4">${rnc.d4.why4}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>5º Por quê?</label>
+                        <textarea rows="2" id="d4-why5">${rnc.d4.why5}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Causa Raiz Identificada</label>
+                        <textarea rows="3" id="d4-causa">${rnc.d4.causaRaiz}</textarea>
+                    </div>
+                `;
+            } else if (phase.id === 'd5') {
+                content += `
+                    <div class="form-group">
+                        <label>Ações Corretivas Permanentes</label>
+                        <textarea rows="5" id="d5-acoes">${rnc.d5.acoesCorretivas}</textarea>
+                    </div>
+                `;
+            } else if (phase.id === 'd6') {
+                content += `
+                    <div class="form-group">
+                        <label>Plano de Implementação</label>
+                        <textarea rows="4" id="d6-plano">${rnc.d6.planoImplementacao}</textarea>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Responsável pela Implementação</label>
+                            <input type="text" id="d6-resp" value="${rnc.d6.responsavel}">
+                        </div>
+                        <div class="form-group">
+                            <label>Prazo de Implementação</label>
+                            <input type="date" id="d6-prazo" value="${rnc.d6.prazoImplementacao}">
+                        </div>
+                    </div>
+                `;
+            } else if (phase.id === 'd7') {
+                content += `
+                    <div class="form-group">
+                        <label>Ações Preventivas (Sistematização)</label>
+                        <textarea rows="5" id="d7-acoes">${rnc.d7.acoesPreventivas}</textarea>
+                    </div>
+                `;
+            } else if (phase.id === 'd8') {
+                content += `
+                    <div class="form-group">
+                        <label>Reconhecimento da Equipe</label>
+                        <textarea rows="3" id="d8-reconhecimento">${rnc.d8.reconhecimento}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Lições Aprendidas</label>
+                        <textarea rows="4" id="d8-licao">${rnc.d8.licaoAprendida}</textarea>
+                    </div>
+                `;
+            }
+            
+            content += `
+                <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                    <button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>
+                    ${canReprazo && !prazo.reprazo2 ? `
+                        <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
+                            Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+            `;
+            
+            return content;
+        }
+
+        function salvarFase(phaseId) {
+            const rnc = state.selectedRNC;
+            const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
+            
+            if (phaseId === 'd1') {
+                state.rncs[rncIndex].d1.equipe = document.getElementById('d1-equipe').value;
+                state.rncs[rncIndex].d1.lider = document.getElementById('d1-lider').value;
+            } else if (phaseId === 'd2') {
+                state.rncs[rncIndex].d2.problema = document.getElementById('d2-problema').value;
+                state.rncs[rncIndex].d2.is5w2h = document.getElementById('d2-5w2h').value;
+            } else if (phaseId === 'd3') {
+                state.rncs[rncIndex].d3.acaoContemcao = document.getElementById('d3-acao').value;
+                state.rncs[rncIndex].d3.evidencia = document.getElementById('d3-evidencia').value;
+            } else if (phaseId === 'd4') {
+                state.rncs[rncIndex].d4.why1 = document.getElementById('d4-why1').value;
+                state.rncs[rncIndex].d4.why2 = document.getElementById('d4-why2').value;
+                state.rncs[rncIndex].d4.why3 = document.getElementById('d4-why3').value;
+                state.rncs[rncIndex].d4.why4 = document.getElementById('d4-why4').value;
+                state.rncs[rncIndex].d4.why5 = document.getElementById('d4-why5').value;
+                state.rncs[rncIndex].d4.causaRaiz = document.getElementById('d4-causa').value;
+            } else if (phaseId === 'd5') {
+                state.rncs[rncIndex].d5.acoesCorretivas = document.getElementById('d5-acoes').value;
+            } else if (phaseId === 'd6') {
+                state.rncs[rncIndex].d6.planoImplementacao = document.getElementById('d6-plano').value;
+                state.rncs[rncIndex].d6.responsavel = document.getElementById('d6-resp').value;
+                state.rncs[rncIndex].d6.prazoImplementacao = document.getElementById('d6-prazo').value;
+            } else if (phaseId === 'd7') {
+                state.rncs[rncIndex].d7.acoesPreventivas = document.getElementById('d7-acoes').value;
+            } else if (phaseId === 'd8') {
+                state.rncs[rncIndex].d8.reconhecimento = document.getElementById('d8-reconhecimento').value;
+                state.rncs[rncIndex].d8.licaoAprendida = document.getElementById('d8-licao').value;
+            }
+            
+            state.selectedRNC = state.rncs[rncIndex];
+            alert('Dados salvos com sucesso!');
+        }
+
+        function solicitarReprazo(phaseId, num) {
+            const phase = phases.find(p => p.id === phaseId);
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1001';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 600px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">Solicitar Re-prazo ${num}</h2>
+                            <p style="color: #64748b; margin-top: 0.5rem;">${phase.name}</p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <strong>Atenção:</strong> Justifique detalhadamente o motivo da solicitação.
+                        </div>
+                        <form id="reprazoForm">
+                            <div class="form-group">
+                                <label>Nova Data Limite</label>
+                                <input type="date" id="novaData" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Justificativa</label>
+                                <textarea id="justificativa" rows="4" placeholder="Descreva o motivo..." required></textarea>
+                            </div>
+                            <div style="display: flex; gap: 1rem;">
+                                <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+                                <button type="submit" class="btn btn-success">Confirmar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+            
+            document.getElementById('reprazoForm').onsubmit = (e) => {
+                e.preventDefault();
+                const novaData = document.getElementById('novaData').value;
+                const just = document.getElementById('justificativa').value;
+                
+                const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+                if (num === 1) {
+                    state.rncs[rncIndex].prazos[phaseId].reprazo1 = novaData;
+                    state.rncs[rncIndex].prazos[phaseId].just1 = just;
+                } else {
+                    state.rncs[rncIndex].prazos[phaseId].reprazo2 = novaData;
+                    state.rncs[rncIndex].prazos[phaseId].just2 = just;
+                }
+                
+                state.rncs[rncIndex].status = "AT_RISK";
+                state.selectedRNC = state.rncs[rncIndex];
+                overlay.remove();
+                render();
+                alert(`Re-prazo ${num} solicitado com sucesso!`);
+            };
+        }
+
+        function attachEventListeners() {
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                loginForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    state.currentUser = users[0];
+                    state.currentPage = 'dashboard';
+                    render();
+                };
+            }
+            
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.onclick = () => {
+                    const page = item.dataset.page;
+                    if (page === 'logout') {
+                        if (confirm('Sair?')) {
+                            state.currentUser = null;
+                            state.currentPage = 'login';
+                            render();
+                        }
+                    } else if (page) {
+                        state.currentPage = page;
+                        render();
+                    }
+                };
+            });
+            
+            document.querySelectorAll('.rnc-row').forEach(row => {
+                row.onclick = () => {
+                    state.selectedRNC = state.rncs.find(r => r.id == row.dataset.rncId);
+                    state.activeTab = 'd1';
+                    render();
+                };
+            });
+            
+            document.querySelectorAll('.btn-view').forEach(btn => {
+                btn.onclick = () => {
+                    state.selectedRNC = state.rncs.find(r => r.id == btn.dataset.rncId);
+                    state.activeTab = 'd1';
+                    render();
+                };
+            });
+            
+            const closeModal = document.getElementById('closeModal');
+            if (closeModal) {
+                closeModal.onclick = () => {
+                    state.selectedRNC = null;
+                    render();
+                };
+            }
+            
+            const modal = document.getElementById('rncModal');
+            if (modal) {
+                modal.onclick = (e) => {
+                    if (e.target === modal) {
+                        state.selectedRNC = null;
+                        render();
+                    }
+                };
+            }
+            
+            document.querySelectorAll('.modal-tab').forEach(tab => {
+                tab.onclick = () => {
+                    state.activeTab = tab.dataset.tab;
+                    render();
+                };
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>
