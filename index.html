@@ -616,6 +616,16 @@
             border: 2px solid #f59e0b;
             color: #92400e;
         }
+
+        .prazo-justificativa {
+            border: 1px solid #f59e0b;
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 0.875rem 1rem;
+            margin-top: 0.75rem;
+            color: #92400e;
+            background: transparent;
+        }
         
         .grid-2 {
             display: grid;
@@ -2305,10 +2315,6 @@
                 `;
             } else if (phase.id === 'd3') {
                 content += `
-                    <div class="form-group">
-                        <label>Ações de Contenção Imediatas</label>
-                        <textarea rows="4" id="d3-acao">${rnc.d3.acaoContemcao}</textarea>
-                    </div>
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Quantidade de Peças em Estoque</label>
@@ -2340,12 +2346,12 @@
                     <div id="d3-validacao-msg" style="margin-bottom:1rem;"></div>
                     <button type="button" class="btn btn-primary" id="d3-etapa-concluida-btn" onclick="concluirEtapaD3()" disabled>Etapa Concluída</button>
                     ${prazo.reprazo1 ? `
-                        <div class="alert alert-warning">
+                        <div class="prazo-justificativa">
                             <strong>Justificativa Re-prazo 1:</strong> ${prazo.just1}
                         </div>
                     ` : ''}
                     ${prazo.reprazo2 ? `
-                        <div class="alert alert-warning">
+                        <div class="prazo-justificativa">
                             <strong>Justificativa Re-prazo 2:</strong> ${prazo.just2}
                         </div>
                     ` : ''}
@@ -2696,7 +2702,6 @@
                 state.rncs[rncIndex].d2.problema = document.getElementById('d2-problema').value;
                 state.rncs[rncIndex].d2.is5w2h = document.getElementById('d2-5w2h').value;
             } else if (phaseId === 'd3') {
-                state.rncs[rncIndex].d3.acaoContemcao = document.getElementById('d3-acao').value;
                 state.rncs[rncIndex].d3.evidencia = document.getElementById('d3-evidencia').value;
                 state.rncs[rncIndex].d3.quantidadeEstoque = document.getElementById('d3-estoque').value;
                 state.rncs[rncIndex].d3.quantidadeInspecionada = document.getElementById('d3-inspecionada').value;
