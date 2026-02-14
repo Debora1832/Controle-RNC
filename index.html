@@ -1125,13 +1125,27 @@
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", initials: "DS" }
         ];
 
-        const equipePreCadastrada = {
-            engenharia: ["Lucas Santos", "Ana Costa", "João Mendes"],
-            qualidade: ["Débora Silva", "Marcos Oliveira", "Maria Lima"],
-            contencao: ["Pedro Costa", "Marcos Oliveira", "Lucas Santos"],
-            pcp: ["Maria Lima", "João Mendes", "Ana Costa"]
-        };
-        const nomesDisponiveisEquipe = [...new Set(Object.values(equipePreCadastrada).flat())];
+        let pessoasBase = [
+            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", email: "lucas.santos@empresa.com" },
+            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", email: "ana.costa@empresa.com" },
+            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "debora@empresa.com" },
+            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "marcos.oliveira@empresa.com" },
+            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", email: "pedro.costa@empresa.com" },
+            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", email: "maria.lima@empresa.com" },
+            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", email: "joao.mendes@empresa.com" }
+        ];
+        let modosFalhaBase = [
+            { id: 1, nome: "Dimensional", categoria: "Produto", setor: "Usinagem" },
+            { id: 2, nome: "Acabamento", categoria: "Processo", setor: "Pintura" },
+            { id: 3, nome: "Montagem", categoria: "Processo", setor: "Montagem" }
+        ];
+        let clientesBase = [
+            { id: 1, nome: "AutoParts Brasil", segmento: "Automotivo", planta: "Planta A" },
+            { id: 2, nome: "Metal Solutions", segmento: "Metalúrgico", planta: "Planta B" },
+            { id: 3, nome: "TechParts Ltd", segmento: "Automotivo", planta: "Planta C" },
+            { id: 4, nome: "Indústria XYZ", segmento: "Industrial", planta: "Planta A" },
+            { id: 5, nome: "MegaAuto SA", segmento: "Automotivo", planta: "Planta B" }
+        ];
 
         const phases = [
             { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
@@ -1166,6 +1180,297 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function getPessoaById(id) {
+            return pessoasBase.find(pessoa => pessoa.id === Number(id));
+        }
+
+        function getPessoasOptions() {
+            return pessoasBase.map(pessoa => `
+                <option value="${pessoa.id}">${escapeHtml(pessoa.nome)} - ${escapeHtml(pessoa.cargo)} (${escapeHtml(pessoa.setor)} / ${escapeHtml(pessoa.planta)})</option>
+            `).join('');
+        }
+
+        function montarEquipeD1(rnc) {
+            const equipe = [];
+            if (rnc.equipeResponsavel?.responsavelContencaoId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.responsavelContencaoId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Responsável pela Contenção" });
+            }
+            if (rnc.equipeResponsavel?.analistaEngenhariaId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.analistaEngenhariaId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Analista de Engenharia" });
+            }
+            if (rnc.equipeResponsavel?.analistaQualidadeId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.analistaQualidadeId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Analista da Qualidade" });
+            }
+            (rnc.equipeResponsavel?.outrosEnvolvidosIds || []).forEach(id => {
+                const pessoa = getPessoaById(id);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Outros Envolvidos" });
+            });
+            if (equipe.length > 0) return equipe;
+
+            const nomesLegados = (rnc.d1?.equipe || '').split(',').map(nome => nome.trim()).filter(Boolean);
+            // Regra de compatibilidade para registros antigos sem papéis estruturados por ID.
+            return nomesLegados.map(nome => {
+                const pessoa = pessoasBase.find(item => item.nome === nome) || { id: null, nome, cargo: "-", setor: "-", planta: "-" };
+                return { pessoa, funcaoRnc: nome === rnc.d1?.lider ? "Analista da Qualidade" : "Outros Envolvidos" };
+            });
+        }
+
+        function isRNCAtiva(rnc) {
+            return rnc.faseAtual !== 'd8';
+        }
+
+        function getCadastroConfig(tipo) {
+            if (tipo === 'pessoas') {
+                return {
+                    titulo: 'Pessoas',
+                    descricao: 'Base de integrantes para equipes de RNC',
+                    fields: [
+                        { key: 'nome', label: 'Nome', type: 'text', required: true },
+                        { key: 'cargo', label: 'Função / Cargo', type: 'text', required: true },
+                        { key: 'setor', label: 'Setor', type: 'text', required: true },
+                        { key: 'planta', label: 'Planta', type: 'text', required: true },
+                        { key: 'gerente', label: 'Gerente', type: 'text', required: true },
+                        { key: 'email', label: 'E-mail', type: 'email', required: true }
+                    ]
+                };
+            }
+            if (tipo === 'modos-falha') {
+                return {
+                    titulo: 'Modo de Falha',
+                    descricao: 'Tipos de falha padronizados para RNC',
+                    fields: [
+                        { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
+                        { key: 'categoria', label: 'Categoria', type: 'text', required: true },
+                        { key: 'setor', label: 'Setor', type: 'text', required: true }
+                    ]
+                };
+            }
+            return {
+                titulo: 'Cliente',
+                descricao: 'Clientes reutilizáveis nas RNCs',
+                fields: [
+                    { key: 'nome', label: 'Nome / Identificação', type: 'text', required: true },
+                    { key: 'segmento', label: 'Segmento', type: 'text', required: true },
+                    { key: 'planta', label: 'Planta', type: 'text', required: true }
+                ]
+            };
+        }
+
+        function getCadastroLista(tipo) {
+            if (tipo === 'pessoas') return pessoasBase;
+            if (tipo === 'modos-falha') return modosFalhaBase;
+            return clientesBase;
+        }
+
+        function getCadastroItemById(tipo, id) {
+            return getCadastroLista(tipo).find(item => item.id === Number(id));
+        }
+
+        function getNextId(listaBase) {
+            return Math.max(0, ...listaBase.map(x => Number(x.id) || 0)) + 1;
+        }
+
+        function bloqueioExclusaoCadastro(tipo, item) {
+            if (!item) return null;
+            if (tipo === 'pessoas') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && (
+                    rnc.equipeResponsavel?.responsavelContencaoId === item.id ||
+                    rnc.equipeResponsavel?.analistaEngenhariaId === item.id ||
+                    rnc.equipeResponsavel?.analistaQualidadeId === item.id ||
+                    (rnc.equipeResponsavel?.outrosEnvolvidosIds || []).includes(item.id) ||
+                    (rnc.d5?.listaAcoes || []).some(acao => acao.responsavelId === item.id || acao.responsavel === item.nome) ||
+                    rnc.responsavel === item.nome ||
+                    (rnc.d1?.lider === item.nome) ||
+                    (rnc.d1?.equipe || '').split(',').map(nome => nome.trim()).includes(item.nome)
+                ));
+                if (vinculado) return 'Não é possível excluir: item vinculado a RNC ativa.';
+            }
+            if (tipo === 'modos-falha') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && rnc.tipoFalha === item.nome);
+                if (vinculado) return 'Não é possível excluir: modo de falha vinculado a RNC ativa.';
+            }
+            if (tipo === 'clientes') {
+                const vinculado = state.rncs.some(rnc => isRNCAtiva(rnc) && rnc.cliente === item.nome);
+                if (vinculado) return 'Não é possível excluir: cliente vinculado a RNC ativa.';
+            }
+            return null;
+        }
+
+        function propagarRenomeacaoCadastro(tipo, nomeAnterior, nomeNovo) {
+            if (!nomeAnterior || nomeAnterior === nomeNovo) return;
+            if (tipo === 'pessoas') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.responsavel === nomeAnterior) rnc.responsavel = nomeNovo;
+                    if (rnc.d1?.lider === nomeAnterior) rnc.d1.lider = nomeNovo;
+                    if (rnc.d1?.equipe) {
+                        rnc.d1.equipe = rnc.d1.equipe
+                            .split(',')
+                            .map(nome => nome.trim() === nomeAnterior ? nomeNovo : nome.trim())
+                            .join(', ');
+                    }
+                    (rnc.d5?.listaAcoes || []).forEach(acao => {
+                        if (acao.responsavel === nomeAnterior) acao.responsavel = nomeNovo;
+                    });
+                });
+            } else if (tipo === 'modos-falha') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.tipoFalha === nomeAnterior) rnc.tipoFalha = nomeNovo;
+                });
+            } else if (tipo === 'clientes') {
+                state.rncs.forEach(rnc => {
+                    if (rnc.cliente === nomeAnterior) rnc.cliente = nomeNovo;
+                });
+            }
+        }
+
+        function abrirModalListagemCadastro(tipo) {
+            const config = getCadastroConfig(tipo);
+            const lista = getCadastroLista(tipo);
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1002';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 900px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">Gerenciar ${config.titulo}</h2>
+                            <p style="color:#64748b; margin-top:0.5rem;">${config.descricao}</p>
+                        </div>
+                        <button class="modal-close" data-close-cadastro-lista>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    ${config.fields.map(field => `<th>${field.label}</th>`).join('')}
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${lista.length === 0 ? `
+                                    <tr><td colspan="${config.fields.length + 1}" style="text-align:center; color:#64748b;">Nenhum item cadastrado.</td></tr>
+                                ` : lista.map(item => `
+                                    <tr>
+                                        ${config.fields.map(field => `<td>${escapeHtml(item[field.key] || '')}</td>`).join('')}
+                                        <td style="display:flex; gap:0.5rem;">
+                                            <button type="button" class="btn btn-secondary btn-editar-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Editar</button>
+                                            <button type="button" class="btn btn-warning btn-excluir-cadastro-item" data-cadastro-tipo="${tipo}" data-item-id="${item.id}" style="padding:0.4rem 0.75rem; font-size:0.8rem;">Excluir</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
+                            <button type="button" class="btn btn-primary btn-novo-cadastro-item" data-cadastro-tipo="${tipo}">Novo Cadastro</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            overlay.querySelector('[data-close-cadastro-lista]').onclick = () => overlay.remove();
+            overlay.querySelector('.btn-novo-cadastro-item').onclick = () => abrirModalFormularioCadastro(tipo, null, overlay);
+            overlay.querySelectorAll('.btn-editar-cadastro-item').forEach(btn => {
+                btn.onclick = () => abrirModalFormularioCadastro(btn.dataset.cadastroTipo, btn.dataset.itemId, overlay);
+            });
+            overlay.querySelectorAll('.btn-excluir-cadastro-item').forEach(btn => {
+                btn.onclick = () => {
+                    const item = getCadastroItemById(btn.dataset.cadastroTipo, btn.dataset.itemId);
+                    if (!item) return;
+                    const bloqueio = bloqueioExclusaoCadastro(btn.dataset.cadastroTipo, item);
+                    if (bloqueio) {
+                        alert(bloqueio);
+                        return;
+                    }
+                    if (!confirm(`Deseja excluir "${item.nome}"?`)) return;
+                    const listaBase = getCadastroLista(btn.dataset.cadastroTipo);
+                    const idx = listaBase.findIndex(x => x.id === item.id);
+                    if (idx !== -1) listaBase.splice(idx, 1);
+                    overlay.remove();
+                    abrirModalListagemCadastro(btn.dataset.cadastroTipo);
+                    render();
+                };
+            });
+        }
+
+        function abrirModalFormularioCadastro(tipo, itemId, parentOverlay) {
+            const config = getCadastroConfig(tipo);
+            const item = itemId ? getCadastroItemById(tipo, itemId) : null;
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 720px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">${item ? 'Editar' : 'Novo'} ${config.titulo}</h2>
+                        </div>
+                        <button class="modal-close" data-close-cadastro-form>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="cadastroItemForm">
+                            ${config.fields.map(field => `
+                                <div class="form-group">
+                                    <label>${field.label} ${field.required ? '*' : ''}</label>
+                                    <input type="${field.type}" name="${field.key}" value="${escapeHtml(item?.[field.key] || '')}" ${field.required ? 'required' : ''}>
+                                </div>
+                            `).join('')}
+                            <div style="display:flex; gap:0.75rem;">
+                                <button type="button" class="btn btn-secondary" data-close-cadastro-form>Cancelar</button>
+                                <button type="submit" class="btn btn-success">Salvar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+            overlay.querySelectorAll('[data-close-cadastro-form]').forEach(btn => btn.onclick = () => overlay.remove());
+            overlay.querySelector('#cadastroItemForm').onsubmit = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const payload = {};
+                config.fields.forEach(field => payload[field.key] = String(formData.get(field.key) || '').trim());
+                const invalid = config.fields.some(field => field.required && !payload[field.key]);
+                if (invalid) {
+                    alert('Preencha todos os campos obrigatórios.');
+                    return;
+                }
+                const listaBase = getCadastroLista(tipo);
+                if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+                    alert('Informe um e-mail válido.');
+                    return;
+                }
+                if (payload.nome) {
+                    const normalize = (nome) => String(nome || '').trim().replace(/\s+/g, ' ').toLowerCase();
+                    const nomeJaExiste = listaBase.some(registro => registro.id !== item?.id && normalize(registro.nome) === normalize(payload.nome));
+                    if (nomeJaExiste) {
+                        alert('Já existe um cadastro com este nome.');
+                        return;
+                    }
+                }
+                if (item) {
+                    const idx = listaBase.findIndex(x => x.id === item.id);
+                    if (idx !== -1) {
+                        const nomeAnterior = listaBase[idx].nome;
+                        listaBase[idx] = { ...listaBase[idx], ...payload };
+                        propagarRenomeacaoCadastro(tipo, nomeAnterior, listaBase[idx].nome);
+                    }
+                } else {
+                    const nextId = getNextId(listaBase);
+                    listaBase.push({ id: nextId, ...payload });
+                }
+                overlay.remove();
+                if (parentOverlay) parentOverlay.remove();
+                abrirModalListagemCadastro(tipo);
+                render();
+            };
         }
 
         async function carregarRNCsDoFirebase() {
@@ -1226,6 +1531,7 @@
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
                             ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
+                            ${state.currentPage === 'cadastro-pessoas' ? renderCadastroPessoas() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                             ${state.currentPage === 'relatorios' ? renderRelatorios() : ''}
                         </div>
@@ -1281,6 +1587,9 @@
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
                             <span>Cadastro RNC (D1)</span>
                         </div>
+                        <div class="nav-item ${state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="cadastro-pessoas">
+                            <span>Cadastros Base</span>
+                        </div>
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
                             <span>Relatórios</span>
                         </div>
@@ -1297,6 +1606,8 @@
                 ? 'Dashboard'
                 : state.currentPage === 'cadastro-rnc'
                     ? 'Cadastro RNC (D1)'
+                    : state.currentPage === 'cadastro-pessoas'
+                        ? 'Cadastros Base'
                     : state.currentPage === 'relatorios'
                         ? 'Relatórios Qualificados'
                     : 'Controle 8D';
@@ -1633,7 +1944,10 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Cliente</label>
-                                <input type="text" name="cliente" required>
+                                <select name="cliente" required>
+                                    <option value="">Selecione</option>
+                                    ${clientesBase.map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Código da Peça</label>
@@ -1643,9 +1957,7 @@
                                 <label>Tipo de Falha</label>
                                 <select name="tipoFalha" required>
                                     <option value="">Selecione</option>
-                                    <option value="Dimensional">Dimensional</option>
-                                    <option value="Acabamento">Acabamento</option>
-                                    <option value="Montagem">Montagem</option>
+                                    ${modosFalhaBase.map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -1673,31 +1985,31 @@
                             </div>
                             <div class="form-group">
                                 <label>Analista de Engenharia</label>
-                                <select name="analistaEngenharia" required>
+                                <select name="analistaEngenhariaId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.engenharia.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Analista da Qualidade</label>
-                                <select name="analistaQualidade" required>
+                                <select name="analistaQualidadeId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.qualidade.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Responsável da Contenção</label>
-                                <select name="responsavelContencao" required>
+                                <select name="responsavelContencaoId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.contencao.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Analista de PCP</label>
-                                <select name="analistaPcp" required>
-                                    <option value="">Selecione</option>
-                                    ${equipePreCadastrada.pcp.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                <label>Outros Envolvidos</label>
+                                <select name="outrosEnvolvidosIds" id="outrosEnvolvidosIds" multiple size="5" aria-label="Selecione outros envolvidos da RNC" aria-describedby="outrosEnvolvidosHint">
+                                    ${getPessoasOptions()}
                                 </select>
+                                <p id="outrosEnvolvidosHint" style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
                             </div>
                             <div class="form-group">
                                 <label>Foto da Peça Conforme</label>
@@ -1714,6 +2026,26 @@
                         </div>
                         <button type="submit" class="btn btn-primary">Cadastrar RNC</button>
                     </form>
+                </div>
+            `;
+        }
+
+        function renderCadastroPessoas() {
+            return `
+                <h1 class="page-title">Cadastros Base</h1>
+                <div class="stats-grid">
+                    ${['pessoas', 'modos-falha', 'clientes'].map(tipo => {
+                        const config = getCadastroConfig(tipo);
+                        const total = getCadastroLista(tipo).length;
+                        return `
+                            <div class="card">
+                                <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 0.5rem;">${config.titulo}</h3>
+                                <p style="color:#64748b; margin-bottom: 1rem;">${config.descricao}</p>
+                                <p style="font-size:0.875rem; color:#475569; margin-bottom: 1rem;">Itens cadastrados: <strong>${total}</strong></p>
+                                <button type="button" class="btn btn-primary btn-gerenciar-cadastro" data-cadastro-tipo="${tipo}">Gerenciar</button>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             `;
         }
@@ -1907,25 +2239,28 @@
             
             // Conteúdo específico de cada fase
             if (phase.id === 'd1') {
-                const equipeAtual = (rnc.d1.equipe || '').split(',').map(nome => nome.trim()).filter(Boolean);
+                const equipeD1 = montarEquipeD1(rnc);
                 content += `
-                    <div class="form-group">
-                        <label>Equipe Multifuncional</label>
-                        <select id="d1-equipe" multiple size="6">
-                            ${nomesDisponiveisEquipe.map(nome => `
-                                <option value="${nome}" ${equipeAtual.includes(nome) ? 'selected' : ''}>${nome}</option>
-                            `).join('')}
-                        </select>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
-                    </div>
-                    <div class="form-group">
-                        <label>Líder da Equipe</label>
-                        <select id="d1-lider">
-                            <option value="" ${!rnc.d1.lider ? 'selected' : ''}>Selecione um líder</option>
-                            ${nomesDisponiveisEquipe.map(nome => `
-                                <option value="${nome}" ${rnc.d1.lider === nome ? 'selected' : ''}>${nome}</option>
-                            `).join('')}
-                        </select>
+                    <div class="card" style="padding: 1rem; margin-top: 0.5rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Equipe da RNC</h4>
+                        <table>
+                            <thead>
+                                <tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr>
+                            </thead>
+                            <tbody>
+                                ${equipeD1.length === 0 ? `
+                                    <tr><td colspan="4" style="text-align:center; color:#64748b;">Equipe não definida no cadastro da RNC.</td></tr>
+                                ` : equipeD1.map(item => `
+                                    <tr>
+                                        <td>${escapeHtml(item.pessoa.nome)}</td>
+                                        <td>${escapeHtml(item.funcaoRnc)}</td>
+                                        <td>${escapeHtml(item.pessoa.setor || '-')}</td>
+                                        <td>${escapeHtml(item.pessoa.planta || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem;">A atualização dos dados da equipe deve ser feita na página "Cadastro de Pessoas".</p>
                     </div>
                 `;
             } else if (phase.id === 'd2') {
@@ -2048,10 +2383,12 @@
                                 ` : acoesD5.map(acao => {
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
                                     const indicador = obterIndicadorPrazoAcao(acao);
+                                    // fallback legado para ações antigas salvas com nome em string.
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
                                     return `
                                         <tr>
                                             <td>${escapeHtml(acao.descricao || '')}</td>
-                                            <td>${escapeHtml(acao.responsavel || '')}</td>
+                                            <td>${escapeHtml(responsavelAcao)}</td>
                                             <td>${prazoVigente ? new Date(`${prazoVigente}T00:00:00`).toLocaleDateString('pt-BR') : '-'}</td>
                                             <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span></td>
                                             <td><span class="badge ${indicador.className}">${indicador.label}</span></td>
@@ -2102,7 +2439,7 @@
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    <button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>
+                    ${phase.id !== 'd1' ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -2265,7 +2602,7 @@
                                     <label>Responsável</label>
                                     <select id="d5-acao-responsavel" required>
                                         <option value="">Selecione</option>
-                                        ${nomesDisponiveisEquipe.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}">${escapeHtml(pessoa.nome)}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -2299,7 +2636,7 @@
                     prazoPrincipal: document.getElementById('d5-acao-prazo-principal').value,
                     reprazo1: document.getElementById('d5-acao-reprazo1').value,
                     reprazo2: document.getElementById('d5-acao-reprazo2').value,
-                    responsavel: document.getElementById('d5-acao-responsavel').value,
+                    responsavelId: Number(document.getElementById('d5-acao-responsavel').value),
                     status: 'ABERTA'
                 });
                 state.selectedRNC = state.rncs[rncIndex];
@@ -2327,9 +2664,8 @@
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
             
             if (phaseId === 'd1') {
-                const equipeSelecionada = Array.from(document.getElementById('d1-equipe').selectedOptions).map(option => option.value);
-                state.rncs[rncIndex].d1.equipe = equipeSelecionada.join(', ');
-                state.rncs[rncIndex].d1.lider = document.getElementById('d1-lider').value;
+                // D1 é controlado pelo cadastro de pessoas e pelo cadastro da RNC.
+                return;
             } else if (phaseId === 'd2') {
                 state.rncs[rncIndex].d2.problema = document.getElementById('d2-problema').value;
                 state.rncs[rncIndex].d2.is5w2h = document.getElementById('d2-5w2h').value;
@@ -2494,11 +2830,21 @@
                         return data.toISOString().split('T')[0];
                     };
 
-                    const analistaEngenharia = formData.get('analistaEngenharia');
-                    const analistaQualidade = formData.get('analistaQualidade');
-                    const responsavelContencao = formData.get('responsavelContencao');
-                    const analistaPcp = formData.get('analistaPcp');
-                    const equipeD1 = [...new Set([analistaEngenharia, analistaQualidade, responsavelContencao, analistaPcp])].join(', ');
+                    const analistaEngenhariaId = Number(formData.get('analistaEngenhariaId'));
+                    const analistaQualidadeId = Number(formData.get('analistaQualidadeId'));
+                    const responsavelContencaoId = Number(formData.get('responsavelContencaoId'));
+                    const outrosEnvolvidosIds = Array.from(cadastroRncForm.querySelector('#outrosEnvolvidosIds').selectedOptions).map(option => Number(option.value));
+
+                    const analistaEngenharia = getPessoaById(analistaEngenhariaId);
+                    const analistaQualidade = getPessoaById(analistaQualidadeId);
+                    const responsavelContencao = getPessoaById(responsavelContencaoId);
+                    const outrosEnvolvidos = outrosEnvolvidosIds.map(id => getPessoaById(id)).filter(Boolean);
+                    const equipeD1 = [...new Set([
+                        responsavelContencao?.nome,
+                        analistaEngenharia?.nome,
+                        analistaQualidade?.nome,
+                        ...outrosEnvolvidos.map(p => p.nome)
+                    ].filter(Boolean))].join(', ');
                     const fotoConformeFile = formData.get('fotoConforme');
                     const fotoNaoConformeFile = formData.get('fotoNaoConforme');
 
@@ -2529,7 +2875,7 @@
                         cliente: formData.get('cliente'),
                         codigoPeca: formData.get('codigoPeca'),
                         tipoFalha: formData.get('tipoFalha'),
-                        responsavel: responsavelContencao,
+                        responsavel: responsavelContencao?.nome || '',
                         quantidade: Number(formData.get('quantidade')),
                         faseAtual: 'd1',
                         status: 'ON_TIME',
@@ -2538,10 +2884,10 @@
                         dataAbertura,
                         descricao: formData.get('descricao'),
                         equipeResponsavel: {
-                            analistaEngenharia,
-                            analistaQualidade,
-                            responsavelContencao,
-                            analistaPcp
+                            analistaEngenhariaId,
+                            analistaQualidadeId,
+                            responsavelContencaoId,
+                            outrosEnvolvidosIds
                         },
                         fotosPeca: {
                             conforme: {
@@ -2553,7 +2899,7 @@
                                 conteudo: fotoNaoConformeBase64
                             }
                         },
-                        d1: { equipe: equipeD1, lider: analistaQualidade },
+                        d1: { equipe: equipeD1, lider: analistaQualidade?.nome || '' },
                         d2: { problema: "", is5w2h: "" },
                         d3: {
                             acaoContemcao: "",
@@ -2589,6 +2935,10 @@
                     alert(salvoNoFirebase ? 'RNC cadastrada com sucesso!' : 'RNC cadastrada localmente. Firebase indisponível.');
                 };
             }
+
+            document.querySelectorAll('.btn-gerenciar-cadastro').forEach(btn => {
+                btn.onclick = () => abrirModalListagemCadastro(btn.dataset.cadastroTipo);
+            });
 
             const d3Estoque = document.getElementById('d3-estoque');
             const d3Inspecionada = document.getElementById('d3-inspecionada');
@@ -2696,4 +3046,3 @@
 </body>
 
 </html>
-
