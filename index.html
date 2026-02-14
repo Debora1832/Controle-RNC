@@ -1093,7 +1093,10 @@
                 if (snapshot.empty) return;
 
                 state.rncs = snapshot.docs
-                    .map(doc => ({ ...doc.data(), id: Number(doc.id) || doc.data().id }))
+                    .map(doc => {
+                        const numericId = Number(doc.id);
+                        return { ...doc.data(), id: Number.isFinite(numericId) ? numericId : doc.data().id };
+                    })
                     .filter(rnc => Number.isFinite(rnc.id))
                     .sort((a, b) => a.id - b.id);
             } catch (error) {
@@ -1102,9 +1105,9 @@
         }
 
         function salvarRNCNoFirebase(rnc) {
-            if (!db || !rnc || !Number.isFinite(rnc.id)) return;
+            if (!db || !rnc || !Number.isFinite(rnc.id)) return Promise.resolve();
 
-            db.collection('rncs')
+            return db.collection('rncs')
                 .doc(String(rnc.id))
                 .set(rnc, { merge: true })
                 .catch(error => console.warn('Falha ao salvar RNC no Firebase:', error));
