@@ -854,7 +854,26 @@
 <body>
     <div id="app"></div>
 
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBcrG1TEl6Q4C1Nsu0BJJ0HlZZzcqUNHVc",
+            authDomain: "controle-rnc.firebaseapp.com",
+            projectId: "controle-rnc",
+            storageBucket: "controle-rnc.firebasestorage.app",
+            messagingSenderId: "949786734068",
+            appId: "1:949786734068:web:1f6e27f35449907a7a1da1"
+        };
+
+        let db = null;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+        } catch (error) {
+            console.warn('Falha ao inicializar Firebase:', error);
+        }
+
         // ESTADO GLOBAL
         let state = {
             currentPage: 'login',
@@ -1065,6 +1084,34 @@
             { id: 'd7', name: 'D7 - Prevenção', short: 'D7' },
             { id: 'd8', name: 'D8 - Encerramento', short: 'D8' }
         ];
+
+        async function carregarRNCsDoFirebase() {
+            if (!db) return;
+
+            try {
+                const snapshot = await db.collection('rncs').get();
+                if (snapshot.empty) return;
+
+                state.rncs = snapshot.docs
+                    .map(doc => {
+                        const numericId = Number(doc.id);
+                        return { ...doc.data(), id: Number.isFinite(numericId) ? numericId : doc.data().id };
+                    })
+                    .filter(rnc => Number.isFinite(rnc.id))
+                    .sort((a, b) => a.id - b.id);
+            } catch (error) {
+                console.warn('Falha ao carregar RNCs do Firebase:', error);
+            }
+        }
+
+        function salvarRNCNoFirebase(rnc) {
+            if (!db || !rnc || !Number.isFinite(rnc.id)) return Promise.resolve();
+
+            return db.collection('rncs')
+                .doc(String(rnc.id))
+                .set(rnc, { merge: true })
+                .catch(error => console.warn('Falha ao salvar RNC no Firebase:', error));
+        }
 
         function render() {
             const app = document.getElementById('app');
@@ -1735,6 +1782,7 @@
             }
             
             state.selectedRNC = state.rncs[rncIndex];
+            salvarRNCNoFirebase(state.selectedRNC);
             alert('Dados salvos com sucesso!');
         }
 
@@ -1793,6 +1841,7 @@
                 
                 state.rncs[rncIndex].status = "AT_RISK";
                 state.selectedRNC = state.rncs[rncIndex];
+                salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
                 alert(`Re-prazo ${num} solicitado com sucesso!`);
@@ -1893,8 +1942,14 @@
             });
         }
 
-        render();
+        async function initApp() {
+            await carregarRNCsDoFirebase();
+            render();
+        }
+
+        initApp();
     </script>
 </body>
 
 </html>
+
