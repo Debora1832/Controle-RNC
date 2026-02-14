@@ -854,7 +854,12 @@
 <body>
     <div id="app"></div>
 
-    <script>
+    <script type="module">
+        // IMPORTS FIREBASE
+        import { login, logout, observeAuthState } from './src/services/authService.js';
+        import { getAllRNCs, updateRNCPhase, solicitarReprazo } from './src/services/rncService.js';
+        import { formatFirebaseError } from './src/utils/firebaseHelpers.js';
+
         // ESTADO GLOBAL
         let state = {
             currentPage: 'login',
@@ -1065,6 +1070,64 @@
             { id: 'd7', name: 'D7 - Prevenção', short: 'D7' },
             { id: 'd8', name: 'D8 - Encerramento', short: 'D8' }
         ];
+
+        // FUNÇÕES FIREBASE
+        /**
+         * Carrega RNCs do Firestore
+         */
+        async function loadRNCsFromFirebase() {
+            try {
+                const rncs = await getAllRNCs();
+                if (rncs && rncs.length > 0) {
+                    state.rncs = rncs;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar RNCs do Firebase:', error);
+                // Mantém os dados locais em caso de erro
+            }
+        }
+
+        /**
+         * Salva fase da RNC no Firestore
+         */
+        async function salvarFaseFirebase(rncId, phaseId, phaseData) {
+            try {
+                await updateRNCPhase(rncId, phaseId, phaseData);
+                await loadRNCsFromFirebase();
+                return true;
+            } catch (error) {
+                console.error('Erro ao salvar fase:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * Observa mudanças no estado de autenticação
+         */
+        observeAuthState((user) => {
+            if (user) {
+                // Usuário logado
+                if (!state.currentUser) {
+                    state.currentUser = {
+                        email: user.email,
+                        name: user.displayName || user.email.split('@')[0],
+                        initials: (user.displayName || user.email.split('@')[0]).substring(0, 2).toUpperCase(),
+                        role: "Usuário"
+                    };
+                    if (state.currentPage === 'login') {
+                        state.currentPage = 'dashboard';
+                        loadRNCsFromFirebase().then(() => render());
+                    }
+                }
+            } else {
+                // Usuário deslogado
+                if (state.currentUser) {
+                    state.currentUser = null;
+                    state.currentPage = 'login';
+                    render();
+                }
+            }
+        });
 
         function render() {
             const app = document.getElementById('app');
@@ -1802,22 +1865,32 @@
         function attachEventListeners() {
             const loginForm = document.getElementById('loginForm');
             if (loginForm) {
-                loginForm.onsubmit = (e) => {
+                loginForm.onsubmit = async (e) => {
                     e.preventDefault();
-                    state.currentUser = users[0];
-                    state.currentPage = 'dashboard';
-                    render();
+                    const email = e.target[0].value;
+                    const password = e.target[1].value;
+                    
+                    try {
+                        await login(email, password);
+                        // O observeAuthState vai lidar com a mudança de estado
+                        await loadRNCsFromFirebase();
+                    } catch (error) {
+                        alert('Erro no login: ' + formatFirebaseError(error));
+                    }
                 };
             }
             
             document.querySelectorAll('.nav-item').forEach(item => {
-                item.onclick = () => {
+                item.onclick = async () => {
                     const page = item.dataset.page;
                     if (page === 'logout') {
                         if (confirm('Sair?')) {
-                            state.currentUser = null;
-                            state.currentPage = 'login';
-                            render();
+                            try {
+                                await logout();
+                                // O observeAuthState vai lidar com a mudança de estado
+                            } catch (error) {
+                                alert('Erro ao sair: ' + formatFirebaseError(error));
+                            }
                         }
                     } else if (page) {
                         state.currentPage = page;
