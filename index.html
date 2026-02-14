@@ -1125,13 +1125,15 @@
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", initials: "DS" }
         ];
 
-        const equipePreCadastrada = {
-            engenharia: ["Lucas Santos", "Ana Costa", "João Mendes"],
-            qualidade: ["Débora Silva", "Marcos Oliveira", "Maria Lima"],
-            contencao: ["Pedro Costa", "Marcos Oliveira", "Lucas Santos"],
-            pcp: ["Maria Lima", "João Mendes", "Ana Costa"]
-        };
-        const nomesDisponiveisEquipe = [...new Set(Object.values(equipePreCadastrada).flat())];
+        let pessoasBase = [
+            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", email: "lucas.santos@empresa.com" },
+            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", email: "ana.costa@empresa.com" },
+            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "debora@empresa.com" },
+            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "marcos.oliveira@empresa.com" },
+            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", email: "pedro.costa@empresa.com" },
+            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", email: "maria.lima@empresa.com" },
+            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", email: "joao.mendes@empresa.com" }
+        ];
 
         const phases = [
             { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
@@ -1166,6 +1168,44 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function getPessoaById(id) {
+            return pessoasBase.find(pessoa => pessoa.id === Number(id));
+        }
+
+        function getPessoasOptions() {
+            return pessoasBase.map(pessoa => `
+                <option value="${pessoa.id}">${escapeHtml(pessoa.nome)} - ${escapeHtml(pessoa.cargo)} (${escapeHtml(pessoa.setor)} / ${escapeHtml(pessoa.planta)})</option>
+            `).join('');
+        }
+
+        function montarEquipeD1(rnc) {
+            const equipe = [];
+            if (rnc.equipeResponsavel?.responsavelContencaoId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.responsavelContencaoId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Responsável pela Contenção" });
+            }
+            if (rnc.equipeResponsavel?.analistaEngenhariaId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.analistaEngenhariaId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Analista de Engenharia" });
+            }
+            if (rnc.equipeResponsavel?.analistaQualidadeId) {
+                const pessoa = getPessoaById(rnc.equipeResponsavel.analistaQualidadeId);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Analista da Qualidade" });
+            }
+            (rnc.equipeResponsavel?.outrosEnvolvidosIds || []).forEach(id => {
+                const pessoa = getPessoaById(id);
+                if (pessoa) equipe.push({ pessoa, funcaoRnc: "Outros Envolvidos" });
+            });
+            if (equipe.length > 0) return equipe;
+
+            const nomesLegados = (rnc.d1?.equipe || '').split(',').map(nome => nome.trim()).filter(Boolean);
+            // Regra de compatibilidade para registros antigos sem papéis estruturados por ID.
+            return nomesLegados.map(nome => {
+                const pessoa = pessoasBase.find(item => item.nome === nome) || { id: null, nome, cargo: "-", setor: "-", planta: "-" };
+                return { pessoa, funcaoRnc: nome === rnc.d1?.lider ? "Analista da Qualidade" : "Outros Envolvidos" };
+            });
         }
 
         async function carregarRNCsDoFirebase() {
@@ -1226,6 +1266,7 @@
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
                             ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
+                            ${state.currentPage === 'cadastro-pessoas' ? renderCadastroPessoas() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                             ${state.currentPage === 'relatorios' ? renderRelatorios() : ''}
                         </div>
@@ -1281,6 +1322,9 @@
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
                             <span>Cadastro RNC (D1)</span>
                         </div>
+                        <div class="nav-item ${state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="cadastro-pessoas">
+                            <span>Cadastro de Pessoas</span>
+                        </div>
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
                             <span>Relatórios</span>
                         </div>
@@ -1297,6 +1341,8 @@
                 ? 'Dashboard'
                 : state.currentPage === 'cadastro-rnc'
                     ? 'Cadastro RNC (D1)'
+                    : state.currentPage === 'cadastro-pessoas'
+                        ? 'Cadastro de Pessoas'
                     : state.currentPage === 'relatorios'
                         ? 'Relatórios Qualificados'
                     : 'Controle 8D';
@@ -1673,31 +1719,31 @@
                             </div>
                             <div class="form-group">
                                 <label>Analista de Engenharia</label>
-                                <select name="analistaEngenharia" required>
+                                <select name="analistaEngenhariaId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.engenharia.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Analista da Qualidade</label>
-                                <select name="analistaQualidade" required>
+                                <select name="analistaQualidadeId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.qualidade.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Responsável da Contenção</label>
-                                <select name="responsavelContencao" required>
+                                <select name="responsavelContencaoId" required>
                                     <option value="">Selecione</option>
-                                    ${equipePreCadastrada.contencao.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    ${getPessoasOptions()}
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Analista de PCP</label>
-                                <select name="analistaPcp" required>
-                                    <option value="">Selecione</option>
-                                    ${equipePreCadastrada.pcp.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                <label>Outros Envolvidos</label>
+                                <select name="outrosEnvolvidosIds" id="outrosEnvolvidosIds" multiple size="5" aria-label="Selecione outros envolvidos da RNC" aria-describedby="outrosEnvolvidosHint">
+                                    ${getPessoasOptions()}
                                 </select>
+                                <p id="outrosEnvolvidosHint" style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
                             </div>
                             <div class="form-group">
                                 <label>Foto da Peça Conforme</label>
@@ -1714,6 +1760,53 @@
                         </div>
                         <button type="submit" class="btn btn-primary">Cadastrar RNC</button>
                     </form>
+                </div>
+            `;
+        }
+
+        function renderCadastroPessoas() {
+            return `
+                <h1 class="page-title">Cadastro de Pessoas</h1>
+                <div class="card">
+                    <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Base de Equipe</h3>
+                    <form id="cadastroPessoaForm">
+                        <input type="hidden" id="pessoa-id">
+                        <div class="grid-2">
+                            <div class="form-group"><label>Nome</label><input type="text" id="pessoa-nome" required></div>
+                            <div class="form-group"><label>Função / Cargo</label><input type="text" id="pessoa-cargo" required></div>
+                            <div class="form-group"><label>Setor</label><input type="text" id="pessoa-setor" required></div>
+                            <div class="form-group"><label>Planta</label><input type="text" id="pessoa-planta" required></div>
+                            <div class="form-group"><label>Gerente</label><input type="text" id="pessoa-gerente" required></div>
+                            <div class="form-group"><label>E-mail</label><input type="email" id="pessoa-email" required></div>
+                        </div>
+                        <div style="display:flex; gap:0.75rem;">
+                            <button type="submit" class="btn btn-primary">Salvar Pessoa</button>
+                            <button type="button" class="btn btn-secondary" id="limparPessoaForm">Limpar</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 1rem;">Pessoas Cadastradas</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nome</th><th>Cargo</th><th>Setor</th><th>Planta</th><th>Gerente</th><th>E-mail</th><th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pessoasBase.map(pessoa => `
+                                <tr>
+                                    <td>${escapeHtml(pessoa.nome)}</td>
+                                    <td>${escapeHtml(pessoa.cargo)}</td>
+                                    <td>${escapeHtml(pessoa.setor)}</td>
+                                    <td>${escapeHtml(pessoa.planta)}</td>
+                                    <td>${escapeHtml(pessoa.gerente)}</td>
+                                    <td>${escapeHtml(pessoa.email)}</td>
+                                    <td><button type="button" class="btn btn-secondary btn-editar-pessoa" data-pessoa-id="${pessoa.id}" style="padding:0.45rem 0.8rem; font-size:0.8rem;">Editar</button></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
             `;
         }
@@ -1907,25 +2000,28 @@
             
             // Conteúdo específico de cada fase
             if (phase.id === 'd1') {
-                const equipeAtual = (rnc.d1.equipe || '').split(',').map(nome => nome.trim()).filter(Boolean);
+                const equipeD1 = montarEquipeD1(rnc);
                 content += `
-                    <div class="form-group">
-                        <label>Equipe Multifuncional</label>
-                        <select id="d1-equipe" multiple size="6">
-                            ${nomesDisponiveisEquipe.map(nome => `
-                                <option value="${nome}" ${equipeAtual.includes(nome) ? 'selected' : ''}>${nome}</option>
-                            `).join('')}
-                        </select>
-                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
-                    </div>
-                    <div class="form-group">
-                        <label>Líder da Equipe</label>
-                        <select id="d1-lider">
-                            <option value="" ${!rnc.d1.lider ? 'selected' : ''}>Selecione um líder</option>
-                            ${nomesDisponiveisEquipe.map(nome => `
-                                <option value="${nome}" ${rnc.d1.lider === nome ? 'selected' : ''}>${nome}</option>
-                            `).join('')}
-                        </select>
+                    <div class="card" style="padding: 1rem; margin-top: 0.5rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Equipe da RNC</h4>
+                        <table>
+                            <thead>
+                                <tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr>
+                            </thead>
+                            <tbody>
+                                ${equipeD1.length === 0 ? `
+                                    <tr><td colspan="4" style="text-align:center; color:#64748b;">Equipe não definida no cadastro da RNC.</td></tr>
+                                ` : equipeD1.map(item => `
+                                    <tr>
+                                        <td>${escapeHtml(item.pessoa.nome)}</td>
+                                        <td>${escapeHtml(item.funcaoRnc)}</td>
+                                        <td>${escapeHtml(item.pessoa.setor || '-')}</td>
+                                        <td>${escapeHtml(item.pessoa.planta || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem;">A atualização dos dados da equipe deve ser feita na página "Cadastro de Pessoas".</p>
                     </div>
                 `;
             } else if (phase.id === 'd2') {
@@ -2048,10 +2144,12 @@
                                 ` : acoesD5.map(acao => {
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
                                     const indicador = obterIndicadorPrazoAcao(acao);
+                                    // fallback legado para ações antigas salvas com nome em string.
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
                                     return `
                                         <tr>
                                             <td>${escapeHtml(acao.descricao || '')}</td>
-                                            <td>${escapeHtml(acao.responsavel || '')}</td>
+                                            <td>${escapeHtml(responsavelAcao)}</td>
                                             <td>${prazoVigente ? new Date(`${prazoVigente}T00:00:00`).toLocaleDateString('pt-BR') : '-'}</td>
                                             <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span></td>
                                             <td><span class="badge ${indicador.className}">${indicador.label}</span></td>
@@ -2102,7 +2200,7 @@
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    <button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>
+                    ${phase.id !== 'd1' ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -2265,7 +2363,7 @@
                                     <label>Responsável</label>
                                     <select id="d5-acao-responsavel" required>
                                         <option value="">Selecione</option>
-                                        ${nomesDisponiveisEquipe.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}">${escapeHtml(pessoa.nome)}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -2299,7 +2397,7 @@
                     prazoPrincipal: document.getElementById('d5-acao-prazo-principal').value,
                     reprazo1: document.getElementById('d5-acao-reprazo1').value,
                     reprazo2: document.getElementById('d5-acao-reprazo2').value,
-                    responsavel: document.getElementById('d5-acao-responsavel').value,
+                    responsavelId: Number(document.getElementById('d5-acao-responsavel').value),
                     status: 'ABERTA'
                 });
                 state.selectedRNC = state.rncs[rncIndex];
@@ -2327,9 +2425,8 @@
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
             
             if (phaseId === 'd1') {
-                const equipeSelecionada = Array.from(document.getElementById('d1-equipe').selectedOptions).map(option => option.value);
-                state.rncs[rncIndex].d1.equipe = equipeSelecionada.join(', ');
-                state.rncs[rncIndex].d1.lider = document.getElementById('d1-lider').value;
+                // D1 é controlado pelo cadastro de pessoas e pelo cadastro da RNC.
+                return;
             } else if (phaseId === 'd2') {
                 state.rncs[rncIndex].d2.problema = document.getElementById('d2-problema').value;
                 state.rncs[rncIndex].d2.is5w2h = document.getElementById('d2-5w2h').value;
@@ -2494,11 +2591,21 @@
                         return data.toISOString().split('T')[0];
                     };
 
-                    const analistaEngenharia = formData.get('analistaEngenharia');
-                    const analistaQualidade = formData.get('analistaQualidade');
-                    const responsavelContencao = formData.get('responsavelContencao');
-                    const analistaPcp = formData.get('analistaPcp');
-                    const equipeD1 = [...new Set([analistaEngenharia, analistaQualidade, responsavelContencao, analistaPcp])].join(', ');
+                    const analistaEngenhariaId = Number(formData.get('analistaEngenhariaId'));
+                    const analistaQualidadeId = Number(formData.get('analistaQualidadeId'));
+                    const responsavelContencaoId = Number(formData.get('responsavelContencaoId'));
+                    const outrosEnvolvidosIds = Array.from(cadastroRncForm.querySelector('#outrosEnvolvidosIds').selectedOptions).map(option => Number(option.value));
+
+                    const analistaEngenharia = getPessoaById(analistaEngenhariaId);
+                    const analistaQualidade = getPessoaById(analistaQualidadeId);
+                    const responsavelContencao = getPessoaById(responsavelContencaoId);
+                    const outrosEnvolvidos = outrosEnvolvidosIds.map(id => getPessoaById(id)).filter(Boolean);
+                    const equipeD1 = [...new Set([
+                        responsavelContencao?.nome,
+                        analistaEngenharia?.nome,
+                        analistaQualidade?.nome,
+                        ...outrosEnvolvidos.map(p => p.nome)
+                    ].filter(Boolean))].join(', ');
                     const fotoConformeFile = formData.get('fotoConforme');
                     const fotoNaoConformeFile = formData.get('fotoNaoConforme');
 
@@ -2529,7 +2636,7 @@
                         cliente: formData.get('cliente'),
                         codigoPeca: formData.get('codigoPeca'),
                         tipoFalha: formData.get('tipoFalha'),
-                        responsavel: responsavelContencao,
+                        responsavel: responsavelContencao?.nome || '',
                         quantidade: Number(formData.get('quantidade')),
                         faseAtual: 'd1',
                         status: 'ON_TIME',
@@ -2538,10 +2645,10 @@
                         dataAbertura,
                         descricao: formData.get('descricao'),
                         equipeResponsavel: {
-                            analistaEngenharia,
-                            analistaQualidade,
-                            responsavelContencao,
-                            analistaPcp
+                            analistaEngenhariaId,
+                            analistaQualidadeId,
+                            responsavelContencaoId,
+                            outrosEnvolvidosIds
                         },
                         fotosPeca: {
                             conforme: {
@@ -2553,7 +2660,7 @@
                                 conteudo: fotoNaoConformeBase64
                             }
                         },
-                        d1: { equipe: equipeD1, lider: analistaQualidade },
+                        d1: { equipe: equipeD1, lider: analistaQualidade?.nome || '' },
                         d2: { problema: "", is5w2h: "" },
                         d3: {
                             acaoContemcao: "",
@@ -2589,6 +2696,58 @@
                     alert(salvoNoFirebase ? 'RNC cadastrada com sucesso!' : 'RNC cadastrada localmente. Firebase indisponível.');
                 };
             }
+
+            const cadastroPessoaForm = document.getElementById('cadastroPessoaForm');
+            if (cadastroPessoaForm) {
+                cadastroPessoaForm.onsubmit = (e) => {
+                    e.preventDefault();
+                    const idInput = document.getElementById('pessoa-id');
+                    const pessoaId = Number(idInput.value);
+                    const pessoaData = {
+                        nome: document.getElementById('pessoa-nome').value,
+                        cargo: document.getElementById('pessoa-cargo').value,
+                        setor: document.getElementById('pessoa-setor').value,
+                        planta: document.getElementById('pessoa-planta').value,
+                        gerente: document.getElementById('pessoa-gerente').value,
+                        email: document.getElementById('pessoa-email').value
+                    };
+                    if (pessoaId) {
+                        const idx = pessoasBase.findIndex(p => p.id === pessoaId);
+                        if (idx !== -1) pessoasBase[idx] = { ...pessoasBase[idx], ...pessoaData };
+                    } else {
+                        const nextId = (pessoasBase.length > 0 ? Math.max(...pessoasBase.map(p => p.id || 0)) : 0) + 1;
+                        pessoasBase.push({ id: nextId, ...pessoaData });
+                    }
+                    cadastroPessoaForm.reset();
+                    idInput.value = '';
+                    render();
+                    alert('Pessoa salva com sucesso!');
+                };
+            }
+
+            const limparPessoaForm = document.getElementById('limparPessoaForm');
+            if (limparPessoaForm) {
+                limparPessoaForm.onclick = () => {
+                    const form = document.getElementById('cadastroPessoaForm');
+                    if (form) form.reset();
+                    const idInput = document.getElementById('pessoa-id');
+                    if (idInput) idInput.value = '';
+                };
+            }
+
+            document.querySelectorAll('.btn-editar-pessoa').forEach(btn => {
+                btn.onclick = () => {
+                    const pessoa = getPessoaById(btn.dataset.pessoaId);
+                    if (!pessoa) return;
+                    document.getElementById('pessoa-id').value = pessoa.id;
+                    document.getElementById('pessoa-nome').value = pessoa.nome;
+                    document.getElementById('pessoa-cargo').value = pessoa.cargo;
+                    document.getElementById('pessoa-setor').value = pessoa.setor;
+                    document.getElementById('pessoa-planta').value = pessoa.planta;
+                    document.getElementById('pessoa-gerente').value = pessoa.gerente;
+                    document.getElementById('pessoa-email').value = pessoa.email;
+                };
+            });
 
             const d3Estoque = document.getElementById('d3-estoque');
             const d3Inspecionada = document.getElementById('d3-inspecionada');
