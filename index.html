@@ -1080,6 +1080,7 @@
             contencao: ["Pedro Costa", "Marcos Oliveira", "Lucas Santos"],
             pcp: ["Maria Lima", "João Mendes", "Ana Costa"]
         };
+        const nomesDisponiveisEquipe = [...new Set(Object.values(equipePreCadastrada).flat())];
 
         const phases = [
             { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
@@ -1149,6 +1150,7 @@
                         ${renderTopBar()}
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
+                            ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                         </div>
                     </div>
@@ -1200,6 +1202,9 @@
                             <span>Controle 8D</span>
                             <span class="nav-badge">${state.rncs.filter(r => r.status === 'AT_RISK').length}</span>
                         </div>
+                        <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
+                            <span>Cadastro RNC (D1)</span>
+                        </div>
                         <div class="nav-item" data-page="logout" style="margin-top: 2rem; color: #ef4444;">
                             <span>Sair</span>
                         </div>
@@ -1209,10 +1214,15 @@
         }
 
         function renderTopBar() {
+            const pageTitle = state.currentPage === 'dashboard'
+                ? 'Dashboard'
+                : state.currentPage === 'cadastro-rnc'
+                    ? 'Cadastro RNC (D1)'
+                    : 'Controle 8D';
             return `
                 <div class="top-bar">
                     <h2 style="font-size: 1.25rem; font-weight: 700;">
-                        ${state.currentPage === 'dashboard' ? 'Dashboard' : 'Controle 8D'}
+                        ${pageTitle}
                     </h2>
                 </div>
             `;
@@ -1525,9 +1535,9 @@
             `;
         }
 
-        function renderControle() {
+        function renderCadastroRNC() {
             return `
-                <h1 class="page-title">Controle 8D</h1>
+                <h1 class="page-title">Cadastro de RNC - D1</h1>
                 <div class="card">
                     <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Cadastro de RNC</h3>
                     <form id="cadastroRncForm">
@@ -1616,6 +1626,12 @@
                         <button type="submit" class="btn btn-primary">Cadastrar RNC</button>
                     </form>
                 </div>
+            `;
+        }
+
+        function renderControle() {
+            return `
+                <h1 class="page-title">Controle 8D</h1>
                 <div class="card">
                     <table>
                         <thead>
@@ -1728,14 +1744,25 @@
             
             // Conteúdo específico de cada fase
             if (phase.id === 'd1') {
+                const equipeAtual = (rnc.d1.equipe || '').split(',').map(nome => nome.trim()).filter(Boolean);
                 content += `
                     <div class="form-group">
                         <label>Equipe Multifuncional</label>
-                        <textarea rows="2" id="d1-equipe">${rnc.d1.equipe}</textarea>
+                        <select id="d1-equipe" multiple size="6">
+                            ${nomesDisponiveisEquipe.map(nome => `
+                                <option value="${nome}" ${equipeAtual.includes(nome) ? 'selected' : ''}>${nome}</option>
+                            `).join('')}
+                        </select>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
                     </div>
                     <div class="form-group">
                         <label>Líder da Equipe</label>
-                        <input type="text" id="d1-lider" value="${rnc.d1.lider}">
+                        <select id="d1-lider">
+                            <option value="" ${!rnc.d1.lider ? 'selected' : ''}>Selecione um líder</option>
+                            ${nomesDisponiveisEquipe.map(nome => `
+                                <option value="${nome}" ${rnc.d1.lider === nome ? 'selected' : ''}>${nome}</option>
+                            `).join('')}
+                        </select>
                     </div>
                 `;
             } else if (phase.id === 'd2') {
@@ -1865,7 +1892,8 @@
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
             
             if (phaseId === 'd1') {
-                state.rncs[rncIndex].d1.equipe = document.getElementById('d1-equipe').value;
+                const equipeSelecionada = Array.from(document.getElementById('d1-equipe').selectedOptions).map(option => option.value);
+                state.rncs[rncIndex].d1.equipe = equipeSelecionada.join(', ');
                 state.rncs[rncIndex].d1.lider = document.getElementById('d1-lider').value;
             } else if (phaseId === 'd2') {
                 state.rncs[rncIndex].d2.problema = document.getElementById('d2-problema').value;
