@@ -1074,6 +1074,13 @@
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", initials: "DS" }
         ];
 
+        const equipePreCadastrada = {
+            engenharia: ["Lucas Santos", "Ana Costa", "João Mendes"],
+            qualidade: ["Débora Silva", "Marcos Oliveira", "Maria Lima"],
+            contencao: ["Pedro Costa", "Marcos Oliveira", "Lucas Santos"],
+            pcp: ["Maria Lima", "João Mendes", "Ana Costa"]
+        };
+
         const phases = [
             { id: 'd1', name: 'D1 - Equipe', short: 'D1' },
             { id: 'd2', name: 'D2 - Problema', short: 'D2' },
@@ -1522,6 +1529,94 @@
             return `
                 <h1 class="page-title">Controle 8D</h1>
                 <div class="card">
+                    <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Cadastro de RNC</h3>
+                    <form id="cadastroRncForm">
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <input type="text" name="cliente" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Código da Peça</label>
+                                <input type="text" name="codigoPeca" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Falha</label>
+                                <select name="tipoFalha" required>
+                                    <option value="">Selecione</option>
+                                    <option value="Dimensional">Dimensional</option>
+                                    <option value="Acabamento">Acabamento</option>
+                                    <option value="Montagem">Montagem</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Setor</label>
+                                <select name="setor" required>
+                                    <option value="">Selecione</option>
+                                    <option value="Usinagem">Usinagem</option>
+                                    <option value="Pintura">Pintura</option>
+                                    <option value="Montagem">Montagem</option>
+                                    <option value="Acabamento">Acabamento</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Prioridade</label>
+                                <select name="prioridade" required>
+                                    <option value="">Selecione</option>
+                                    <option value="Alta">Alta</option>
+                                    <option value="Média">Média</option>
+                                    <option value="Baixa">Baixa</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Quantidade</label>
+                                <input type="number" name="quantidade" min="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Analista de Engenharia</label>
+                                <select name="analistaEngenharia" required>
+                                    <option value="">Selecione</option>
+                                    ${equipePreCadastrada.engenharia.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Analista da Qualidade</label>
+                                <select name="analistaQualidade" required>
+                                    <option value="">Selecione</option>
+                                    ${equipePreCadastrada.qualidade.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Responsável da Contenção</label>
+                                <select name="responsavelContencao" required>
+                                    <option value="">Selecione</option>
+                                    ${equipePreCadastrada.contencao.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Analista de PCP</label>
+                                <select name="analistaPcp" required>
+                                    <option value="">Selecione</option>
+                                    ${equipePreCadastrada.pcp.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Foto da Peça Conforme</label>
+                                <input type="file" name="fotoConforme" accept="image/*" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Foto da Peça Não Conforme</label>
+                                <input type="file" name="fotoNaoConforme" accept="image/*" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Descrição da Não Conformidade</label>
+                            <textarea rows="3" name="descricao" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Cadastrar RNC</button>
+                    </form>
+                </div>
+                <div class="card">
                     <table>
                         <thead>
                             <tr>
@@ -1907,6 +2002,107 @@
                     render();
                 };
             });
+
+            const cadastroRncForm = document.getElementById('cadastroRncForm');
+            if (cadastroRncForm) {
+                cadastroRncForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(cadastroRncForm);
+                    const nextId = state.rncs.length ? Math.max(...state.rncs.map(r => r.id)) + 1 : 1;
+                    const hoje = new Date();
+                    const dataAbertura = hoje.toISOString().split('T')[0];
+                    const addDays = (days) => {
+                        const data = new Date(hoje);
+                        data.setDate(data.getDate() + days);
+                        return data.toISOString().split('T')[0];
+                    };
+
+                    const analistaEngenharia = formData.get('analistaEngenharia');
+                    const analistaQualidade = formData.get('analistaQualidade');
+                    const responsavelContencao = formData.get('responsavelContencao');
+                    const analistaPcp = formData.get('analistaPcp');
+                    const equipeD1 = [...new Set([analistaEngenharia, analistaQualidade, responsavelContencao, analistaPcp])].join(', ');
+                    const fotoConformeFile = formData.get('fotoConforme');
+                    const fotoNaoConformeFile = formData.get('fotoNaoConforme');
+
+                    const toBase64 = (file) => new Promise((resolve) => {
+                        if (!file || !file.name) {
+                            resolve('');
+                            return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result || '');
+                        reader.onerror = () => {
+                            console.warn('Falha ao ler arquivo de foto:', file.name);
+                            resolve('');
+                        };
+                        reader.readAsDataURL(file);
+                    });
+
+                    const fotoConformeBase64 = await toBase64(fotoConformeFile);
+                    const fotoNaoConformeBase64 = await toBase64(fotoNaoConformeFile);
+                    if (!fotoConformeBase64 || !fotoNaoConformeBase64) {
+                        alert('Não foi possível processar as fotos da peça. Tente novamente.');
+                        return;
+                    }
+
+                    const novaRnc = {
+                        id: nextId,
+                        numero: `RNC-${hoje.getFullYear()}-${String(nextId).padStart(3, '0')}`,
+                        cliente: formData.get('cliente'),
+                        codigoPeca: formData.get('codigoPeca'),
+                        tipoFalha: formData.get('tipoFalha'),
+                        responsavel: responsavelContencao,
+                        quantidade: Number(formData.get('quantidade')),
+                        faseAtual: 'd1',
+                        status: 'ON_TIME',
+                        prioridade: formData.get('prioridade'),
+                        setor: formData.get('setor'),
+                        dataAbertura,
+                        descricao: formData.get('descricao'),
+                        equipeResponsavel: {
+                            analistaEngenharia,
+                            analistaQualidade,
+                            responsavelContencao,
+                            analistaPcp
+                        },
+                        fotosPeca: {
+                            conforme: {
+                                nome: fotoConformeFile?.name || '',
+                                conteudo: fotoConformeBase64
+                            },
+                            naoConforme: {
+                                nome: fotoNaoConformeFile?.name || '',
+                                conteudo: fotoNaoConformeBase64
+                            }
+                        },
+                        d1: { equipe: equipeD1, lider: analistaQualidade },
+                        d2: { problema: "", is5w2h: "" },
+                        d3: { acaoContemcao: "", evidencia: "" },
+                        d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
+                        d5: { acoesCorretivas: "" },
+                        d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
+                        d7: { acoesPreventivas: "" },
+                        d8: { reconhecimento: "", licaoAprendida: "" },
+                        prazos: {
+                            d1: { original: dataAbertura, sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d2: { original: dataAbertura, sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d3: { original: addDays(1), sla: "24 horas", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d4: { original: addDays(3), sla: "3 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d5: { original: addDays(5), sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d6: { original: addDays(12), sla: "7 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d7: { original: addDays(14), sla: "2 dias", reprazo1: null, reprazo2: null, just1: "", just2: "" },
+                            d8: { original: addDays(15), sla: "1 dia", reprazo1: null, reprazo2: null, just1: "", just2: "" }
+                        }
+                    };
+
+                    state.rncs.push(novaRnc);
+                    const salvoNoFirebase = await salvarRNCNoFirebase(novaRnc);
+                    cadastroRncForm.reset();
+                    render();
+                    alert(salvoNoFirebase ? 'RNC cadastrada com sucesso!' : 'RNC cadastrada localmente. Firebase indisponível.');
+                };
+            }
             
             const closeModal = document.getElementById('closeModal');
             if (closeModal) {
