@@ -1992,10 +1992,49 @@
                     </div>
                 `;
             } else if (phase.id === 'd5') {
+                const acoesD5 = rnc.d5.listaAcoes || [];
                 content += `
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:1rem;">
+                        <button type="button" class="btn btn-primary" onclick="abrirCadastroAcaoD5()">Cadastrar Ação</button>
+                    </div>
                     <div class="form-group">
                         <label>Ações Corretivas Permanentes</label>
                         <textarea rows="5" id="d5-acoes">${rnc.d5.acoesCorretivas}</textarea>
+                    </div>
+                    <div class="card" style="padding: 1rem; margin-top: 1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Ações Cadastradas</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Descrição da Ação</th>
+                                    <th>Responsável</th>
+                                    <th>Prazo Vigente</th>
+                                    <th>Status</th>
+                                    <th>Indicador de Prazo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${acoesD5.length === 0 ? `
+                                    <tr>
+                                        <td colspan="6" style="text-align:center; color:#64748b;">Nenhuma ação cadastrada.</td>
+                                    </tr>
+                                ` : acoesD5.map(acao => {
+                                    const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    const indicador = obterIndicadorPrazoAcao(acao);
+                                    return `
+                                        <tr>
+                                            <td>${escapeHtml(acao.descricao || '')}</td>
+                                            <td>${escapeHtml(acao.responsavel || '')}</td>
+                                            <td>${prazoVigente ? new Date(`${prazoVigente}T00:00:00`).toLocaleDateString('pt-BR') : '-'}</td>
+                                            <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span></td>
+                                            <td><span class="badge ${indicador.className}">${indicador.label}</span></td>
+                                            <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="alternarStatusAcaoD5('${acao.id}')">${acao.status === 'CONCLUIDA' ? 'Reabrir' : 'Concluir'}</button></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
                     </div>
                 `;
             } else if (phase.id === 'd6') {
@@ -2048,6 +2087,106 @@
             `;
             
             return content;
+        }
+
+        function obterPrazoVigenteAcao(acao) {
+            return acao.reprazo2 || acao.reprazo1 || acao.prazoPrincipal || '';
+        }
+
+        function obterIndicadorPrazoAcao(acao) {
+            const prazoVigente = obterPrazoVigenteAcao(acao);
+            if (!prazoVigente) return { label: '-', className: 'blue' };
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            const prazo = new Date(`${prazoVigente}T00:00:00`);
+            if (hoje.getTime() < prazo.getTime()) return { label: 'No prazo', className: 'green' };
+            if (hoje.getTime() === prazo.getTime()) return { label: 'A vencer', className: 'orange' };
+            return { label: 'Em atraso', className: 'red' };
+        }
+
+        function abrirCadastroAcaoD5() {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1002';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 760px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">Cadastrar Ação Corretiva</h2>
+                            <p style="color:#64748b; margin-top:0.5rem;">Etapa D5 - Ações Corretivas</p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="d5AcaoForm">
+                            <div class="form-group">
+                                <label>Descrição da Ação</label>
+                                <textarea id="d5-acao-descricao" rows="3" required></textarea>
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Prazo Principal</label>
+                                    <input type="date" id="d5-acao-prazo-principal" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Responsável</label>
+                                    <select id="d5-acao-responsavel" required>
+                                        <option value="">Selecione</option>
+                                        ${nomesDisponiveisEquipe.map(nome => `<option value="${nome}">${nome}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Reprazo 1</label>
+                                    <input type="date" id="d5-acao-reprazo1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Reprazo 2</label>
+                                    <input type="date" id="d5-acao-reprazo2">
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:1rem;">
+                                <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+                                <button type="submit" class="btn btn-success">Salvar Ação</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            document.getElementById('d5AcaoForm').onsubmit = async (e) => {
+                e.preventDefault();
+                const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+                if (rncIndex === -1) return;
+                state.rncs[rncIndex].d5.listaAcoes = state.rncs[rncIndex].d5.listaAcoes || [];
+                state.rncs[rncIndex].d5.listaAcoes.push({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    descricao: document.getElementById('d5-acao-descricao').value,
+                    prazoPrincipal: document.getElementById('d5-acao-prazo-principal').value,
+                    reprazo1: document.getElementById('d5-acao-reprazo1').value,
+                    reprazo2: document.getElementById('d5-acao-reprazo2').value,
+                    responsavel: document.getElementById('d5-acao-responsavel').value,
+                    status: 'ABERTA'
+                });
+                state.selectedRNC = state.rncs[rncIndex];
+                const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+                alert(salvoNoFirebase ? 'Ação corretiva cadastrada com sucesso!' : 'Ação cadastrada localmente. Firebase indisponível.');
+            };
+        }
+
+        async function alternarStatusAcaoD5(acaoId) {
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            const acoes = state.rncs[rncIndex].d5.listaAcoes || [];
+            const acaoIndex = acoes.findIndex(acao => acao.id === acaoId);
+            if (acaoIndex === -1) return;
+            acoes[acaoIndex].status = acoes[acaoIndex].status === 'CONCLUIDA' ? 'ABERTA' : 'CONCLUIDA';
+            state.selectedRNC = state.rncs[rncIndex];
+            await salvarRNCNoFirebase(state.selectedRNC);
+            render();
         }
 
         async function salvarFase(phaseId) {
