@@ -2471,7 +2471,7 @@
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    ${phase.id !== 'd1' ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
+                    ${!['d1', 'd3'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -2590,6 +2590,8 @@
             state.rncs[rncIndex].d3.quantidadeEstoque = estoqueInput.value;
             state.rncs[rncIndex].d3.quantidadeInspecionada = inspecionadaInput.value;
             state.rncs[rncIndex].d3.quantidadeNaoConforme = naoConformeInput.value;
+            const evidenciaInput = document.getElementById('d3-evidencia');
+            state.rncs[rncIndex].d3.evidencia = evidenciaInput ? evidenciaInput.value : state.rncs[rncIndex].d3.evidencia;
             if (anexoInput && anexoInput.files && anexoInput.files.length > 0) {
                 const arquivo = anexoInput.files[0];
                 const base64 = await lerArquivoBase64(arquivo, 'anexo D3');
@@ -2601,9 +2603,15 @@
                 state.rncs[rncIndex].d3.anexoAlertaAssinadoConteudo = base64;
             }
             state.rncs[rncIndex].d3.etapaConcluida = true;
+            const indiceFaseAtual = phases.findIndex(p => p.id === 'd3');
+            const proximaFase = (indiceFaseAtual >= 0 && indiceFaseAtual < phases.length - 1) ? phases[indiceFaseAtual + 1] : null;
+            if (proximaFase) {
+                state.rncs[rncIndex].faseAtual = proximaFase.id;
+                state.activeTab = proximaFase.id;
+            }
             state.selectedRNC = state.rncs[rncIndex];
             const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
-            alert(salvoNoFirebase ? 'Etapa D3 concluída com sucesso!' : 'Etapa D3 concluída localmente. Firebase indisponível.');
+            alert(salvoNoFirebase ? 'Etapa D3 concluída com sucesso! Avançando para a próxima etapa.' : 'Etapa D3 concluída localmente. Firebase indisponível. Avançando para a próxima etapa.');
             render();
         }
 
