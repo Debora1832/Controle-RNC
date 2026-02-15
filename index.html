@@ -1464,6 +1464,60 @@
             rnc.faseAtual = proximaEtapa || 'd8';
         }
 
+        function getResponsavelRNC(rnc) {
+            return getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.responsavel || rnc.d1?.lider || '-';
+        }
+
+        function getStatusConclusao8D(rnc) {
+            const concluido = isEtapaConcluida(rnc, 'd8');
+            return concluido
+                ? { value: 'CONCLUIDO', label: 'Concluído', className: 'green' }
+                : { value: 'EM_ANDAMENTO', label: 'Em andamento', className: 'blue' };
+        }
+
+        function getPrazoVigenteEtapa(prazoEtapa) {
+            if (!prazoEtapa) return '';
+            return prazoEtapa.reprazo2 || prazoEtapa.reprazo1 || prazoEtapa.original || '';
+        }
+
+        function getResponsavelEtapaAtrasada(rnc, phaseId) {
+            if (phaseId === 'd5' || phaseId === 'd6') {
+                const acaoAberta = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).find(acao => acao.status !== 'CONCLUIDA');
+                if (acaoAberta) return getPessoaById(acaoAberta.responsavelId)?.nome || acaoAberta.responsavel || getResponsavelRNC(rnc);
+            }
+            if (phaseId === 'd7') {
+                const acaoAberta = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7).find(acao => acao.status !== 'CONCLUIDA');
+                if (acaoAberta) return getPessoaById(acaoAberta.responsavelId)?.nome || acaoAberta.responsavel || getResponsavelRNC(rnc);
+            }
+            return getResponsavelRNC(rnc);
+        }
+
+        function getEtapasEmAtraso(rnc) {
+            const etapas = ['d3', 'd4', 'd5', 'd6', 'd7'];
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            return etapas.flatMap(phaseId => {
+                if (isEtapaConcluida(rnc, phaseId)) return [];
+                const prazoVigente = getPrazoVigenteEtapa(rnc.prazos?.[phaseId]);
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(String(prazoVigente || ''))) return [];
+                const prazo = new Date(`${prazoVigente}T00:00:00`);
+                if (hoje.getTime() <= prazo.getTime()) return [];
+                return [{
+                    phaseId,
+                    phaseName: phases.find(p => p.id === phaseId)?.name || phaseId.toUpperCase(),
+                    vencimento: prazoVigente,
+                    responsavel: getResponsavelEtapaAtrasada(rnc, phaseId)
+                }];
+            });
+        }
+
+        function getStatusEtapas8D(rnc) {
+            const atrasos = getEtapasEmAtraso(rnc);
+            if (!atrasos.length) return { value: 'SEM_ATRASO', label: 'Sem atraso', className: 'green', detalhe: '' };
+            const detalhe = atrasos.map(item => `Etapa em atraso: ${item.phaseName} • Prazo vencido em: ${formatDateSafe(item.vencimento)} • Responsável: ${item.responsavel}`).join(' || ');
+            return { value: 'COM_ATRASO', label: 'Com atraso', className: 'red', detalhe };
+        }
+
         function isRNCAtiva(rnc) {
             return !isEtapaConcluida(rnc, 'd8');
         }
@@ -2341,6 +2395,22 @@
                                 ${[...new Set(state.rncs.map(r => r.setor))].map(setor => `<option value="${escapeHtml(setor)}">${escapeHtml(setor)}</option>`).join('')}
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label>Status de Conclusão</label>
+                            <select id="controleFiltroConclusao">
+                                <option value="">Todos</option>
+                                <option value="CONCLUIDO">Concluído</option>
+                                <option value="EM_ANDAMENTO">Em andamento</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Situação de Etapas</label>
+                            <select id="controleFiltroEtapas">
+                                <option value="">Todos</option>
+                                <option value="SEM_ATRASO">Sem atraso</option>
+                                <option value="COM_ATRASO">Com atraso</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Buscar por número ou cliente</label>
@@ -2355,25 +2425,32 @@
                                 <th>Cliente</th>
                                 <th>Responsável</th>
                                 <th>Fase Atual</th>
-                                <th>Status</th>
+                                <th>Status Conclusão</th>
+                                <th>Status Etapas</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${state.rncs.map(rnc => `
-                                <tr class="controle-row" data-status="${rnc.status}" data-setor="${encodeURIComponent(rnc.setor)}">
+                            ${state.rncs.map(rnc => {
+                                const statusConclusao = getStatusConclusao8D(rnc);
+                                const statusEtapas = getStatusEtapas8D(rnc);
+                                const responsavel = getResponsavelRNC(rnc);
+                                return `
+                                <tr class="controle-row" data-status="${rnc.status}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
                                     <td>${rnc.cliente}</td>
-                                    <td>${rnc.responsavel}</td>
+                                    <td>${escapeHtml(responsavel)}</td>
                                     <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
-                                    <td><span class="badge ${rnc.status === 'ON_TIME' ? 'green' : 'red'}">${rnc.status === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
+                                    <td><span class="badge ${statusConclusao.className}">${statusConclusao.label}</span></td>
+                                    <td><span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span></td>
                                     <td>
                                         <button class="btn btn-primary btn-view" data-rnc-id="${rnc.id}" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                             Ver Detalhes
                                         </button>
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -4052,22 +4129,30 @@
 
             const filtroStatus = document.getElementById('controleFiltroStatus');
             const filtroSetor = document.getElementById('controleFiltroSetor');
+            const filtroConclusao = document.getElementById('controleFiltroConclusao');
+            const filtroEtapas = document.getElementById('controleFiltroEtapas');
             const filtroBusca = document.getElementById('controleFiltroBusca');
-            if (filtroStatus && filtroSetor && filtroBusca) {
+            if (filtroStatus && filtroSetor && filtroConclusao && filtroEtapas && filtroBusca) {
                 const aplicarFiltrosControle = () => {
                     const status = filtroStatus.value;
                     const setor = filtroSetor.value;
+                    const conclusao = filtroConclusao.value;
+                    const etapas = filtroEtapas.value;
                     const busca = filtroBusca.value.trim().toLowerCase();
                     const setorEncoded = encodeURIComponent(setor);
                     document.querySelectorAll('.controle-row').forEach(row => {
                         const matchStatus = !status || row.dataset.status === status;
                         const matchSetor = !setor || row.dataset.setor === setorEncoded;
+                        const matchConclusao = !conclusao || row.dataset.conclusao === conclusao;
+                        const matchEtapas = !etapas || row.dataset.etapas === etapas;
                         const matchBusca = !busca || row.textContent.toLowerCase().includes(busca);
-                        row.style.display = matchStatus && matchSetor && matchBusca ? '' : 'none';
+                        row.style.display = matchStatus && matchSetor && matchConclusao && matchEtapas && matchBusca ? '' : 'none';
                     });
                 };
                 filtroStatus.onchange = aplicarFiltrosControle;
                 filtroSetor.onchange = aplicarFiltrosControle;
+                filtroConclusao.onchange = aplicarFiltrosControle;
+                filtroEtapas.onchange = aplicarFiltrosControle;
                 filtroBusca.oninput = aplicarFiltrosControle;
             }
             
