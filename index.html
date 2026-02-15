@@ -1005,6 +1005,31 @@
         .stagger-2 { animation-delay: 0.2s; opacity: 0; }
         .stagger-3 { animation-delay: 0.3s; opacity: 0; }
         .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+
+        .dashboard-filter-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            background: #ffffff;
+            border: 1px solid #dbeafe;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .dashboard-list-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination-info {
+            font-size: 0.82rem;
+            color: #64748b;
+        }
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -1055,6 +1080,10 @@
             currentUser: null,
             perfilModalAberto: false,
             perfilAbaAtiva: 'perfil',
+            dashboardFilterMonth: new Date().getMonth(),
+            dashboardFilterYear: new Date().getFullYear(),
+            dashboardSearch: '',
+            dashboardPage: 1,
             selectedRNC: null,
             activeTab: 'd1',
             activeD4SubTab: 'principal',
@@ -1568,6 +1597,35 @@
 
         function getStatusRncValue(rnc) {
             return isRncEmRisco(rnc) ? 'AT_RISK' : 'ON_TIME';
+        }
+
+        function getDashboardCompetenciaRncs() {
+            return state.rncs.filter(rnc => {
+                if (!rnc?.dataAbertura) return false;
+                const abertura = new Date(rnc.dataAbertura);
+                if (Number.isNaN(abertura.getTime())) return false;
+                return abertura.getMonth() === Number(state.dashboardFilterMonth) &&
+                    abertura.getFullYear() === Number(state.dashboardFilterYear);
+            });
+        }
+
+        function buildCompetenciaTrendData() {
+            const series = [];
+            const baseDate = new Date(Number(state.dashboardFilterYear), Number(state.dashboardFilterMonth), 1);
+            for (let i = 5; i >= 0; i--) {
+                const pointDate = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+                const month = pointDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+                const yearShort = String(pointDate.getFullYear()).slice(-2);
+                const count = state.rncs.filter(rnc => {
+                    if (!rnc?.dataAbertura) return false;
+                    const abertura = new Date(rnc.dataAbertura);
+                    return !Number.isNaN(abertura.getTime()) &&
+                        abertura.getMonth() === pointDate.getMonth() &&
+                        abertura.getFullYear() === pointDate.getFullYear();
+                }).length;
+                series.push({ month: `${month.charAt(0).toUpperCase()}${month.slice(1)}/${yearShort}`, count });
+            }
+            return series;
         }
 
         function validatePasswordComplexity(password) {
@@ -2120,21 +2178,29 @@
         }
 
         function renderDashboard() {
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const anosDisponiveis = [...new Set(state.rncs
+                .map(r => new Date(r.dataAbertura).getFullYear())
+                .filter(y => !Number.isNaN(y))
+                .concat([new Date().getFullYear()]))].sort((a, b) => a - b);
+            const rncsCompetencia = getDashboardCompetenciaRncs();
+            const trendData = buildCompetenciaTrendData();
+
             // Cálculos de métricas básicas
-            const total = state.rncs.length;
-            const noPrazo = state.rncs.filter(r => getStatusRncValue(r) === "ON_TIME").length;
-            const emRisco = state.rncs.filter(r => getStatusRncValue(r) === "AT_RISK").length;
+            const total = rncsCompetencia.length;
+            const noPrazo = rncsCompetencia.filter(r => getStatusRncValue(r) === "ON_TIME").length;
+            const emRisco = rncsCompetencia.filter(r => getStatusRncValue(r) === "AT_RISK").length;
             
             // Cálculos Lean
             const taxaNoPrazo = total > 0 ? ((noPrazo / total) * 100).toFixed(1) : 0;
-            const rncsComReprazo = state.rncs.filter(r => {
+            const rncsComReprazo = rncsCompetencia.filter(r => {
                 return Object.values(r.prazos).some(p => p.reprazo1 !== null || p.reprazo2 !== null);
             }).length;
             const taxaReprazo = total > 0 ? ((rncsComReprazo / total) * 100).toFixed(1) : 0;
             
             // Lead Time médio (simulado - dias desde abertura)
             const hoje = new Date('2026-02-14');
-            const leadTimes = state.rncs.map(r => {
+            const leadTimes = rncsCompetencia.map(r => {
                 const abertura = new Date(r.dataAbertura);
                 return Math.floor((hoje - abertura) / (1000 * 60 * 60 * 24));
             });
@@ -2149,7 +2215,7 @@
             
             // Distribuição por setor
             const porSetor = {};
-            state.rncs.forEach(r => {
+            rncsCompetencia.forEach(r => {
                 porSetor[r.setor] = (porSetor[r.setor] || 0) + 1;
             });
             const setorData = Object.entries(porSetor).map(([setor, count]) => ({ setor, count }))
@@ -2157,7 +2223,7 @@
             
             // Distribuição por tipo de falha
             const porTipo = {};
-            state.rncs.forEach(r => {
+            rncsCompetencia.forEach(r => {
                 porTipo[r.tipoFalha] = (porTipo[r.tipoFalha] || 0) + 1;
             });
             const tipoData = Object.entries(porTipo).map(([tipo, count]) => ({ tipo, count }))
@@ -2173,8 +2239,35 @@
                 'D6-D7': 5.5,
                 'D7-D8': 1.5
             };
-            
+
+            const searchTerm = String(state.dashboardSearch || '').trim().toLowerCase();
+            const listaFiltrada = rncsCompetencia.filter(rnc =>
+                !searchTerm ||
+                String(rnc.numero || '').toLowerCase().includes(searchTerm) ||
+                String(rnc.cliente || '').toLowerCase().includes(searchTerm)
+            );
+            const pageSize = 5;
+            const totalPages = Math.max(1, Math.ceil(listaFiltrada.length / pageSize));
+            const currentPage = Math.min(state.dashboardPage, totalPages);
+            state.dashboardPage = currentPage;
+            const start = (currentPage - 1) * pageSize;
+            const listaPaginada = listaFiltrada.slice(start, start + pageSize);
+             
             return `
+                <div class="dashboard-filter-bar">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>📅 Mês</label>
+                        <select id="dashboardMonthFilter">
+                            ${meses.map((mes, idx) => `<option value="${idx}" ${Number(state.dashboardFilterMonth) === idx ? 'selected' : ''}>${mes}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>📆 Ano</label>
+                        <select id="dashboardYearFilter">
+                            ${anosDisponiveis.map(ano => `<option value="${ano}" ${Number(state.dashboardFilterYear) === ano ? 'selected' : ''}>${ano}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
                 <!-- Métricas Principais -->
                 <div class="stats-grid">
                     <div class="stat-card fade-in-up stagger-1" data-filter="all">
@@ -2208,7 +2301,7 @@
                         <div class="stat-label">Em Risco</div>
                         <div class="stat-value" style="color: #dc2626;">${emRisco}</div>
                         <div class="stat-trend ${emRisco > 2 ? 'negative' : 'positive'}">
-                            <span>${((emRisco / total) * 100).toFixed(1)}% do total</span>
+                            <span>${total > 0 ? ((emRisco / total) * 100).toFixed(1) : '0.0'}% do total</span>
                         </div>
                         <div class="stat-comparison">Meta: ≤ 20%</div>
                     </div>
@@ -2235,9 +2328,9 @@
                         <div class="stat-comparison">RNCs concluídas dentro do prazo</div>
                     </div>
                     
-                    <div class="stat-card ${taxaReprazo <= 20 ? 'success' : taxaReprazo <= 40 ? 'warning' : 'danger'} fade-in-up">
+                    <div class="stat-card warning fade-in-up">
                         <div class="stat-label">Taxa de Re-prazos</div>
-                        <div class="stat-value" style="font-size: 2.5rem; color: ${taxaReprazo <= 20 ? '#059669' : taxaReprazo <= 40 ? '#f59e0b' : '#dc2626'};">${taxaReprazo}%</div>
+                        <div class="stat-value" style="font-size: 2.5rem; color: #f59e0b;">${taxaReprazo}%</div>
                         <div class="stat-comparison">${rncsComReprazo} de ${total} RNCs com reprazo</div>
                     </div>
                     
@@ -2326,11 +2419,11 @@
                         <div class="chart-title">Tendência de RNCs (Últimos 6 Meses)</div>
                         <div class="line-chart">
                             <svg class="line-chart-svg" viewBox="0 0 100 50">
-                                ${renderLineChart(historicalData.monthlyRNCs)}
+                                ${renderLineChart(trendData)}
                             </svg>
                         </div>
                         <div class="line-chart-labels">
-                            ${historicalData.monthlyRNCs.map(m => `
+                            ${trendData.map(m => `
                                 <span class="line-chart-label">${m.month}</span>
                             `).join('')}
                         </div>
@@ -2340,6 +2433,14 @@
                 <!-- Tabela de RNCs -->
                 <div class="section-title" style="margin-top: 2rem;"><span class="section-title-icon">${renderIcon('list')}</span> Lista de RNCs</div>
                 <div class="card fade-in-up">
+                    <div class="dashboard-list-toolbar">
+                        <input id="dashboardSearchInput" type="text" placeholder="Buscar por número ou cliente" value="${escapeHtml(state.dashboardSearch || '')}" style="max-width: 320px;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <button class="btn btn-secondary" id="dashboardPrevPage" ${currentPage <= 1 ? 'disabled' : ''}>Anterior</button>
+                            <button class="btn btn-secondary" id="dashboardNextPage" ${currentPage >= totalPages ? 'disabled' : ''}>Próxima</button>
+                            <span class="pagination-info">Página ${currentPage} de ${totalPages}</span>
+                        </div>
+                    </div>
                     <table>
                         <thead>
                             <tr>
@@ -2353,7 +2454,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${state.rncs.map(rnc => {
+                            ${listaPaginada.map(rnc => {
                                 const statusRnc = getStatusRncValue(rnc);
                                 return `
                                 <tr class="rnc-row" data-rnc-id="${rnc.id}">
@@ -2401,7 +2502,8 @@
         
         // Função auxiliar para renderizar gráfico de linha
         function renderLineChart(data) {
-            const maxCount = Math.max(...data.map(d => d.count));
+            if (!data.length) return '';
+            const maxCount = Math.max(1, ...data.map(d => d.count || 0));
             const points = data.map((d, i) => {
                 const x = (i / (data.length - 1)) * 100;
                 const y = 45 - ((d.count / maxCount) * 35);
@@ -2633,6 +2735,7 @@
                             }).join('')}
                         </tbody>
                     </table>
+                    ${listaFiltrada.length === 0 ? '<p class="pagination-info" style="margin-top:0.75rem;">Nenhuma RNC encontrada para a competência/filtro informado.</p>' : ''}
                 </div>
             `;
         }
@@ -4181,6 +4284,43 @@
                     render();
                 };
             });
+
+            const dashboardMonthFilter = document.getElementById('dashboardMonthFilter');
+            const dashboardYearFilter = document.getElementById('dashboardYearFilter');
+            const dashboardSearchInput = document.getElementById('dashboardSearchInput');
+            const dashboardPrevPage = document.getElementById('dashboardPrevPage');
+            const dashboardNextPage = document.getElementById('dashboardNextPage');
+            if (dashboardMonthFilter && dashboardYearFilter) {
+                dashboardMonthFilter.onchange = () => {
+                    state.dashboardFilterMonth = Number(dashboardMonthFilter.value);
+                    state.dashboardPage = 1;
+                    render();
+                };
+                dashboardYearFilter.onchange = () => {
+                    state.dashboardFilterYear = Number(dashboardYearFilter.value);
+                    state.dashboardPage = 1;
+                    render();
+                };
+            }
+            if (dashboardSearchInput) {
+                dashboardSearchInput.oninput = () => {
+                    state.dashboardSearch = dashboardSearchInput.value;
+                    state.dashboardPage = 1;
+                    render();
+                };
+            }
+            if (dashboardPrevPage) {
+                dashboardPrevPage.onclick = () => {
+                    state.dashboardPage = Math.max(1, state.dashboardPage - 1);
+                    render();
+                };
+            }
+            if (dashboardNextPage) {
+                dashboardNextPage.onclick = () => {
+                    state.dashboardPage = state.dashboardPage + 1;
+                    render();
+                };
+            }
 
             const cadastroRncForm = document.getElementById('cadastroRncForm');
             if (cadastroRncForm) {
