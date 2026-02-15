@@ -1294,6 +1294,13 @@
             overlay.querySelector('[data-close-image-modal]').onclick = () => fecharModal();
         }
 
+        function formatDateSafe(dateText) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateText || ''))) return '-';
+            const parsed = new Date(`${dateText}T00:00:00`);
+            if (Number.isNaN(parsed.getTime())) return '-';
+            return parsed.toLocaleDateString('pt-BR');
+        }
+
         function getUltimoPorquePreenchido(analise) {
             for (let i = 5; i > 0; i--) {
                 const valor = String(analise?.[`why${i}`] || '').trim();
@@ -2580,10 +2587,6 @@
                     <div style="display:flex; justify-content:flex-end; margin-bottom:1rem;">
                         <button type="button" class="btn btn-primary" onclick="abrirCadastroAcaoD5()">Cadastrar Ação</button>
                     </div>
-                    <div class="form-group">
-                        <label>Ações Corretivas Permanentes</label>
-                        <textarea rows="5" id="d5-acoes">${rnc.d5.acoesCorretivas}</textarea>
-                    </div>
                     <div class="card" style="padding: 1rem; margin-top: 1rem;">
                         <h4 style="font-weight:700; margin-bottom:0.75rem;">Ações Cadastradas</h4>
                         <table>
@@ -2591,9 +2594,9 @@
                                 <tr>
                                     <th>Descrição da Ação</th>
                                     <th>Responsável</th>
-                                    <th>Prazo Vigente</th>
-                                    <th>Status</th>
-                                    <th>Indicador de Prazo</th>
+                                    <th>Prazo Original</th>
+                                    <th>Status de Prazo</th>
+                                    <th>Re-prazo</th>
                                     <th>Ações</th>
                                 </tr>
                             </thead>
@@ -2603,18 +2606,18 @@
                                         <td colspan="6" style="text-align:center; color:#64748b;">Nenhuma ação cadastrada.</td>
                                     </tr>
                                 ` : acoesD5.map(acao => {
+                                    const acaoNormalizada = normalizeAcaoD5(acao);
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
                                     const indicador = obterIndicadorPrazoAcao(acao);
-                                    // fallback legado para ações antigas salvas com nome em string.
-                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                                    const responsavelAcao = getPessoaById(acaoNormalizada.responsavelId)?.nome || acaoNormalizada.responsavel || '-';
                                     return `
                                         <tr>
-                                            <td>${escapeHtml(acao.descricao || '')}</td>
+                                            <td>${escapeHtml(acaoNormalizada.descricao || '')}</td>
                                             <td>${escapeHtml(responsavelAcao)}</td>
-                                            <td>${prazoVigente ? new Date(`${prazoVigente}T00:00:00`).toLocaleDateString('pt-BR') : '-'}</td>
-                                            <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span></td>
-                                            <td><span class="badge ${indicador.className}">${indicador.label}</span></td>
-                                            <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="alternarStatusAcaoD5('${acao.id}')">${acao.status === 'CONCLUIDA' ? 'Reabrir' : 'Concluir'}</button></td>
+                                            <td>${formatDateSafe(acaoNormalizada.prazoPrincipal)}</td>
+                                            <td><span class="badge ${indicador.className === 'red' ? 'red' : (indicador.className === 'orange' ? 'orange' : 'green')}">${indicador.className === 'red' ? 'Em atraso' : 'Dentro do prazo'}</span></td>
+                                            <td>${acaoNormalizada.reprazos?.length ? `Sim / Nº ${acaoNormalizada.reprazos.length}` : 'Não'}</td>
+                                            <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="abrirCadastroAcaoD5('${acao.id}')">Editar</button></td>
                                         </tr>
                                     `;
                                 }).join('')}
@@ -2623,20 +2626,26 @@
                     </div>
                 `;
             } else if (phase.id === 'd6') {
+                const acoesD6 = (rnc.d5.listaAcoes || []).map(normalizeAcaoD5);
                 content += `
-                    <div class="form-group">
-                        <label>Plano de Implementação</label>
-                        <textarea rows="4" id="d6-plano">${rnc.d6.planoImplementacao}</textarea>
-                    </div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label>Responsável pela Implementação</label>
-                            <input type="text" id="d6-resp" value="${rnc.d6.responsavel}">
-                        </div>
-                        <div class="form-group">
-                            <label>Prazo de Implementação</label>
-                            <input type="date" id="d6-prazo" value="${rnc.d6.prazoImplementacao}">
-                        </div>
+                    <div class="card" style="padding:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Ações para Implementação</h4>
+                        ${acoesD6.length === 0 ? `
+                            <div style="color:#64748b;">Nenhuma ação cadastrada no D5.</div>
+                        ` : `
+                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                                ${acoesD6.map(acao => {
+                                    const indicador = obterIndicadorPrazoAcao(acao);
+                                    const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    return `
+                                        <button type="button" class="btn btn-secondary" style="text-align:left; width:100%;" onclick="abrirImplementacaoAcaoD6('${acao.id}')">
+                                            <strong>${escapeHtml(acao.descricao || 'Ação sem descrição')}</strong><br>
+                                            <span style="font-size:0.8125rem; color:#475569;">Prazo vigente: ${formatDateSafe(prazoVigente)} • ${indicador.label} • ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span>
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
                     </div>
                 `;
             } else if (phase.id === 'd7') {
@@ -2661,7 +2670,7 @@
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    ${!['d1', 'd2', 'd3'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
+                    ${!['d1', 'd2', 'd3', 'd5', 'd6'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -2674,8 +2683,22 @@
             return content;
         }
 
+        function normalizeAcaoD5(acao) {
+            if (!acao) return { id: '', descricao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], dataConclusao: '' };
+            if (!Array.isArray(acao.reprazos)) {
+                const reprazos = [];
+                if (acao.reprazo1) reprazos.push({ numero: 1, data: acao.reprazo1, justificativa: acao.justificativaReprazo1 || '' });
+                if (acao.reprazo2) reprazos.push({ numero: 2, data: acao.reprazo2, justificativa: acao.justificativaReprazo2 || '' });
+                acao.reprazos = reprazos;
+            }
+            acao.evidencias = Array.isArray(acao.evidencias) ? acao.evidencias : [];
+            return acao;
+        }
+
         function obterPrazoVigenteAcao(acao) {
-            return acao.reprazo2 || acao.reprazo1 || acao.prazoPrincipal || '';
+            const acaoNormalizada = normalizeAcaoD5(acao);
+            const ultimoReprazo = acaoNormalizada.reprazos?.length ? acaoNormalizada.reprazos[acaoNormalizada.reprazos.length - 1]?.data : '';
+            return ultimoReprazo || acaoNormalizada.prazoPrincipal || '';
         }
 
         function obterIndicadorPrazoAcao(acao) {
@@ -2805,15 +2828,20 @@
             render();
         }
 
-        function abrirCadastroAcaoD5() {
+        function abrirCadastroAcaoD5(acaoId = '') {
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay active';
             overlay.style.zIndex = '1002';
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            const acoes = state.rncs[rncIndex].d5.listaAcoes || [];
+            const acaoExistente = acoes.find(acao => acao.id === acaoId);
+            const dadosAcao = normalizeAcaoD5(acaoExistente || {});
             overlay.innerHTML = `
                 <div class="modal-content" style="max-width: 760px;" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <div>
-                            <h2 class="modal-title">Cadastrar Ação Corretiva</h2>
+                            <h2 class="modal-title">${acaoExistente ? 'Editar Ação Corretiva' : 'Cadastrar Ação Corretiva'}</h2>
                             <p style="color:#64748b; margin-top:0.5rem;">Etapa D5 - Ações Corretivas</p>
                         </div>
                         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
@@ -2822,32 +2850,24 @@
                         <form id="d5AcaoForm">
                             <div class="form-group">
                                 <label>Descrição da Ação</label>
-                                <textarea id="d5-acao-descricao" rows="3" required></textarea>
+                                <textarea id="d5-acao-descricao" rows="3" required>${escapeHtml(dadosAcao.descricao || '')}</textarea>
                             </div>
                             <div class="grid-2">
                                 <div class="form-group">
                                     <label>Prazo Principal</label>
-                                    <input type="date" id="d5-acao-prazo-principal" required>
+                                    <input type="date" id="d5-acao-prazo-principal" value="${dadosAcao.prazoPrincipal || ''}" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Responsável</label>
                                     <select id="d5-acao-responsavel" required>
                                         <option value="">Selecione</option>
-                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}">${escapeHtml(pessoa.nome)}</option>`).join('')}
+                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
                                     </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Reprazo 1</label>
-                                    <input type="date" id="d5-acao-reprazo1">
-                                </div>
-                                <div class="form-group">
-                                    <label>Reprazo 2</label>
-                                    <input type="date" id="d5-acao-reprazo2">
                                 </div>
                             </div>
                             <div style="display:flex; gap:1rem;">
                                 <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
-                                <button type="submit" class="btn btn-success">Salvar Ação</button>
+                                <button type="submit" class="btn btn-success">${acaoExistente ? 'Salvar Alterações' : 'Salvar Ação'}</button>
                             </div>
                         </form>
                     </div>
@@ -2858,36 +2878,141 @@
 
             document.getElementById('d5AcaoForm').onsubmit = async (e) => {
                 e.preventDefault();
-                const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
-                if (rncIndex === -1) return;
                 state.rncs[rncIndex].d5.listaAcoes = state.rncs[rncIndex].d5.listaAcoes || [];
-                state.rncs[rncIndex].d5.listaAcoes.push({
-                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                const payload = {
+                    id: acaoExistente?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     descricao: document.getElementById('d5-acao-descricao').value,
                     prazoPrincipal: document.getElementById('d5-acao-prazo-principal').value,
-                    reprazo1: document.getElementById('d5-acao-reprazo1').value,
-                    reprazo2: document.getElementById('d5-acao-reprazo2').value,
                     responsavelId: Number(document.getElementById('d5-acao-responsavel').value),
-                    status: 'ABERTA'
-                });
+                    status: acaoExistente?.status || 'ABERTA',
+                    reprazos: acaoExistente?.reprazos || [],
+                    evidencias: acaoExistente?.evidencias || [],
+                    dataConclusao: acaoExistente?.dataConclusao || ''
+                };
+                const idxAcao = state.rncs[rncIndex].d5.listaAcoes.findIndex(acao => acao.id === payload.id);
+                if (idxAcao >= 0) state.rncs[rncIndex].d5.listaAcoes[idxAcao] = payload;
+                else state.rncs[rncIndex].d5.listaAcoes.push(payload);
                 state.selectedRNC = state.rncs[rncIndex];
                 const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
-                alert(salvoNoFirebase ? 'Ação corretiva cadastrada com sucesso!' : 'Ação cadastrada localmente. Firebase indisponível.');
+                alert(salvoNoFirebase ? 'Ação corretiva salva com sucesso!' : 'Ação salva localmente. Firebase indisponível.');
             };
         }
 
-        async function alternarStatusAcaoD5(acaoId) {
+        function obterHistoricoReprazoHtml(acao) {
+            const reprazos = normalizeAcaoD5(acao).reprazos || [];
+            if (!reprazos.length) return '<div style="color:#64748b;">Sem re-prazo aplicado.</div>';
+            return `<ul style="padding-left:1.25rem; color:#334155;">${reprazos.map(item => `<li>Nº ${item.numero}: ${formatDateSafe(item.data)} - ${escapeHtml(item.justificativa || '-')}</li>`).join('')}</ul>`;
+        }
+
+        function abrirImplementacaoAcaoD6(acaoId) {
             const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
             if (rncIndex === -1) return;
             const acoes = state.rncs[rncIndex].d5.listaAcoes || [];
             const acaoIndex = acoes.findIndex(acao => acao.id === acaoId);
             if (acaoIndex === -1) return;
-            acoes[acaoIndex].status = acoes[acaoIndex].status === 'CONCLUIDA' ? 'ABERTA' : 'CONCLUIDA';
-            state.selectedRNC = state.rncs[rncIndex];
-            await salvarRNCNoFirebase(state.selectedRNC);
-            render();
+            const acao = normalizeAcaoD5(acoes[acaoIndex]);
+            const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 780px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Implementação da Ação</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                            <h4 style="font-weight:700; margin-bottom:0.75rem;">Informações de Cadastro</h4>
+                            <div><strong>Descrição:</strong> ${escapeHtml(acao.descricao || '-')}</div>
+                            <div><strong>Responsável:</strong> ${escapeHtml(responsavelAcao)}</div>
+                            <div><strong>Prazo Original:</strong> ${formatDateSafe(acao.prazoPrincipal)}</div>
+                            <div style="margin-top:0.5rem;"><strong>Histórico de Re-prazo:</strong> ${obterHistoricoReprazoHtml(acao)}</div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Novo Re-prazo</label>
+                                <input type="date" id="d6-acao-reprazo-data">
+                            </div>
+                            <div class="form-group">
+                                <label>Justificativa do Re-prazo</label>
+                                <input type="text" id="d6-acao-reprazo-just" placeholder="Obrigatória ao aplicar re-prazo">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Anexo de Evidências da Implementação</label>
+                            <input type="file" id="d6-acao-evidencia-file" accept=".pdf,image/*">
+                            ${acao.evidencias?.length ? `<div style="margin-top:0.5rem; color:#475569; font-size:0.8125rem;">Evidências anexadas: ${acao.evidencias.length}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" id="d6-salvar-acao-btn">Salvar Alterações</button>
+                            <button type="button" class="btn btn-success" id="d6-concluir-acao-btn" ${acao.evidencias?.length ? '' : 'disabled'}>Concluir Ação</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            const evidenciaInput = overlay.querySelector('#d6-acao-evidencia-file');
+            const concluirBtn = overlay.querySelector('#d6-concluir-acao-btn');
+            const atualizarEstadoConcluir = () => {
+                concluirBtn.disabled = !(acao.evidencias?.length || evidenciaInput.files?.length);
+            };
+            evidenciaInput.onchange = atualizarEstadoConcluir;
+            atualizarEstadoConcluir();
+
+            const aplicarAtualizacoes = async () => {
+                const reprazoData = overlay.querySelector('#d6-acao-reprazo-data').value;
+                const reprazoJust = overlay.querySelector('#d6-acao-reprazo-just').value.trim();
+                if (reprazoData && !reprazoJust) {
+                    alert('Justificativa é obrigatória para aplicar re-prazo.');
+                    return false;
+                }
+                if (reprazoData) {
+                    const numero = (acao.reprazos?.length || 0) + 1;
+                    acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
+                }
+                if (evidenciaInput.files?.length) {
+                    const arquivo = evidenciaInput.files[0];
+                    const base64 = await lerArquivoBase64(arquivo, 'evidência da ação D6');
+                    if (base64 === null) {
+                        alert('Falha ao processar evidência. Tente novamente.');
+                        return false;
+                    }
+                    acao.evidencias = acao.evidencias || [];
+                    acao.evidencias.push({ nome: arquivo.name, conteudo: base64, data: new Date().toISOString() });
+                }
+                return true;
+            };
+
+            overlay.querySelector('#d6-salvar-acao-btn').onclick = async () => {
+                const ok = await aplicarAtualizacoes();
+                if (!ok) return;
+                acoes[acaoIndex] = acao;
+                state.selectedRNC = state.rncs[rncIndex];
+                await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+            };
+
+            concluirBtn.onclick = async () => {
+                if (!acao.evidencias?.length && !evidenciaInput.files?.length) {
+                    alert('Anexe pelo menos uma evidência para concluir a ação.');
+                    return;
+                }
+                const ok = await aplicarAtualizacoes();
+                if (!ok) return;
+                acao.status = 'CONCLUIDA';
+                acao.dataConclusao = new Date().toISOString();
+                acoes[acaoIndex] = acao;
+                state.selectedRNC = state.rncs[rncIndex];
+                await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+            };
         }
 
         async function salvarFase(phaseId) {
@@ -2926,11 +3051,9 @@
                 }
                 consolidateD4Data(d4);
             } else if (phaseId === 'd5') {
-                state.rncs[rncIndex].d5.acoesCorretivas = document.getElementById('d5-acoes').value;
+                return;
             } else if (phaseId === 'd6') {
-                state.rncs[rncIndex].d6.planoImplementacao = document.getElementById('d6-plano').value;
-                state.rncs[rncIndex].d6.responsavel = document.getElementById('d6-resp').value;
-                state.rncs[rncIndex].d6.prazoImplementacao = document.getElementById('d6-prazo').value;
+                return;
             } else if (phaseId === 'd7') {
                 state.rncs[rncIndex].d7.acoesPreventivas = document.getElementById('d7-acoes').value;
             } else if (phaseId === 'd8') {
