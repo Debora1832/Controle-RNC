@@ -4409,6 +4409,24 @@
             const dataGeracao = new Date().toLocaleString('pt-BR');
             const plantaRnc = equipeD1[0]?.pessoa?.planta || '-';
             const responsavelRnc = getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.d1?.lider || '-';
+            const totalPaginas = 9;
+            const renderPdfHeader = (tituloEtapa = '') => `
+                <div class="pdf-header-bar">
+                    <div class="pdf-logo">MAGIUS</div>
+                    <div class="pdf-frase">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
+                </div>
+                <div class="pdf-report-title">
+                    <div>RELATÓRIO 8D</div>
+                    <div>${escapeHtml(rnc.numero)}</div>
+                </div>
+                ${tituloEtapa ? `<h3 class="pdf-section-title">${tituloEtapa}</h3>` : ''}
+            `;
+            const renderPdfFooter = (pageNumber) => `
+                <div class="pdf-footer">
+                    <span>RNC: ${escapeHtml(rnc.numero)}</span>
+                    <span>Relatório 8D – Página ${pageNumber} de ${totalPaginas}</span>
+                </div>
+            `;
 
             const html = `
                 <!DOCTYPE html>
@@ -4417,46 +4435,38 @@
                     <meta charset="UTF-8" />
                     <title>Relatório 8D - ${escapeHtml(rnc.numero)}</title>
                     <style>
-                        @page { size: A4 portrait; margin: 16mm; }
+                        @page { size: A4 portrait; margin: 2cm; }
                         body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
-                        .pdf-page { page-break-after: always; padding-bottom: 18mm; }
+                        .pdf-page { page-break-after: always; padding-bottom: 12mm; break-inside: avoid; }
                         .pdf-page:last-child { page-break-after: auto; }
-                        .pdf-header { border-bottom:2px solid #0f172a; padding-bottom:8px; margin-bottom:10px; }
-                        .pdf-brand { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
-                        .pdf-logo { font-weight:800; letter-spacing:0.08em; color:#0b1f3a; }
-                        .pdf-frase { font-size:9px; text-transform:uppercase; letter-spacing:0.04em; color:#64748b; max-width:70%; text-align:right; }
-                        .pdf-header h1 { margin:0; font-size:20px; }
-                        .pdf-header h2 { margin:6px 0 0; font-size:16px; color:#1d4ed8; }
+                        .pdf-header-bar { background:#0b3a75; color:#fff; min-height:2.5cm; display:flex; justify-content:space-between; align-items:center; padding:0.45cm 0.6cm; border-radius:6px; }
+                        .pdf-logo { font-weight:700; letter-spacing:0.08em; font-size:16px; }
+                        .pdf-frase { font-size:9px; text-transform:uppercase; letter-spacing:0.04em; opacity:0.92; max-width:62%; text-align:right; }
+                        .pdf-report-title { margin-top:8px; background:#dbeafe; border-bottom:2px solid #1e3a8a; border-radius:4px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; color:#0b3a75; font-weight:700; }
                         .pdf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px 14px; margin-top:10px; }
-                        .pdf-grid div { padding:6px; border:1px solid #cbd5e1; border-radius:6px; }
-                        .pdf-section-title { font-size:16px; color:#0f172a; margin:0 0 8px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; }
-                        .pdf-subtitle { margin:10px 0 6px; font-size:13px; color:#1d4ed8; }
+                        .pdf-grid div { padding:7px; border:1px solid #bfdbfe; border-radius:6px; background:#fff; }
+                        .pdf-section-title { font-size:15px; color:#1e3a8a; background:#dbeafe; margin:14px 0 8px; border-radius:4px; padding:8px 10px; border:1px solid #bfdbfe; page-break-after: avoid; }
+                        .pdf-subtitle { margin:10px 0 6px; font-size:13px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:3px; page-break-after: avoid; }
                         .pdf-table { width:100%; border-collapse: collapse; margin-top:6px; }
-                        .pdf-table th, .pdf-table td { border:1px solid #cbd5e1; padding:6px; vertical-align: top; text-align:left; }
-                        .pdf-table th { background:#eff6ff; }
+                        .pdf-table th, .pdf-table td { border:1px solid #bfdbfe; padding:6px; vertical-align: top; text-align:left; }
+                        .pdf-table th { background:#e0ecff; color:#1e3a8a; font-weight:700; page-break-after: avoid; }
+                        .pdf-table tbody tr:nth-child(even) { background:#f8fbff; }
+                        thead { display: table-header-group; }
                         .pdf-muted { color:#64748b; font-style:italic; margin-top:4px; }
                         .pdf-image-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-                        .pdf-image-card { border:2px solid #94a3b8; border-radius:6px; padding:6px; }
-                        .pdf-image-card.green { border-color:#16a34a; }
-                        .pdf-image-card.red { border-color:#dc2626; }
-                        .pdf-image-title { font-weight:700; margin-bottom:6px; }
-                        .pdf-image-card img { width:100%; max-height:240px; object-fit:contain; border:1px solid #e2e8f0; background:white; }
-                        .pdf-action-block { border:1px solid #cbd5e1; border-radius:6px; padding:8px; margin-bottom:8px; }
+                        .pdf-image-card { border:1px solid #bfdbfe; border-radius:6px; padding:6px; break-inside: avoid; background:#fff; }
+                        .pdf-image-card.green, .pdf-image-card.red { border-color:#bfdbfe; }
+                        .pdf-image-title { font-weight:700; margin-bottom:6px; color:#1e40af; }
+                        .pdf-image-card img { width:100%; max-height:240px; object-fit:contain; border:1px solid #bfdbfe; background:white; display:block; margin:0 auto; }
+                        .pdf-action-block { border:1px solid #bfdbfe; border-radius:6px; padding:8px; margin-bottom:8px; break-inside: avoid; }
                         .pdf-action-block h4 { margin:0 0 6px; font-size:13px; }
                         .pdf-evidence-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:6px; }
-                        .pdf-footer { margin-top:10px; padding-top:6px; border-top:1px solid #cbd5e1; font-size:10px; color:#475569; display:flex; justify-content:space-between; }
+                        .pdf-footer { margin-top:10px; padding-top:6px; border-top:1px solid #bfdbfe; font-size:10px; color:#64748b; display:flex; justify-content:space-between; }
                     </style>
                 </head>
                 <body>
                     <section class="pdf-page">
-                        <div class="pdf-header">
-                            <div class="pdf-brand">
-                                <div class="pdf-logo">MAGIUS</div>
-                                <div class="pdf-frase">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
-                            </div>
-                            <h1>Relatório 8D</h1>
-                            <h2>${escapeHtml(rnc.numero)}</h2>
-                        </div>
+                        ${renderPdfHeader()}
                         <div class="pdf-grid">
                             <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
                             <div><strong>Produto / Processo:</strong> ${escapeHtml(rnc.setor || '-')}</div>
@@ -4465,22 +4475,23 @@
                             <div><strong>Data de encerramento:</strong> ${extractAndFormatDate(rnc.d8?.dataConclusao)}</div>
                             <div><strong>Responsável pela RNC:</strong> ${escapeHtml(responsavelRnc)}</div>
                         </div>
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Gerado em ${dataGeracao}</span></div>
+                        <div class="pdf-muted">Data de geração: ${dataGeracao}</div>
+                        ${renderPdfFooter(1)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D1 – Construção da Equipe</h3>
+                        ${renderPdfHeader('D1 – Construção da Equipe')}
                         <table class="pdf-table">
                             <thead><tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr></thead>
                             <tbody>
                                 ${equipeD1.length ? equipeD1.map(item => `<tr><td>${escapeHtml(item.pessoa.nome)}</td><td>${escapeHtml(item.funcaoRnc)}</td><td>${escapeHtml(item.pessoa.setor || '-')}</td><td>${escapeHtml(item.pessoa.planta || '-')}</td></tr>`).join('') : '<tr><td colspan="4">Equipe não informada.</td></tr>'}
                             </tbody>
                         </table>
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(2)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D2 – Definição do Problema</h3>
+                        ${renderPdfHeader('D2 – Definição do Problema')}
                         <div><strong>Descrição do problema:</strong> ${escapeHtml(rnc.descricao || rnc.d2?.problema || '-')}</div>
                         <div class="pdf-grid" style="margin-top:8px;">
                             <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
@@ -4492,11 +4503,11 @@
                             ${renderImagemOuAnexoRelatorio('Peça Conforme', rnc.fotosPeca?.conforme?.conteudo, { variant: 'green' })}
                             ${renderImagemOuAnexoRelatorio('Peça Não Conforme', rnc.fotosPeca?.naoConforme?.conteudo, { variant: 'red' })}
                         </div>
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(3)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D3 – Contenção</h3>
+                        ${renderPdfHeader('D3 – Contenção')}
                         <div class="pdf-grid">
                             <div><strong>Quantidade em estoque:</strong> ${escapeHtml(String(rnc.d3?.quantidadeEstoque || '-'))}</div>
                             <div><strong>Quantidade inspecionada:</strong> ${escapeHtml(String(rnc.d3?.quantidadeInspecionada || '-'))}</div>
@@ -4505,11 +4516,11 @@
                         </div>
                         <h4 class="pdf-subtitle">Alerta de contenção assinado</h4>
                         ${renderImagemOuAnexoRelatorio(rnc.d3?.anexoAlertaAssinadoNome || 'Alerta assinado', rnc.d3?.anexoAlertaAssinadoConteudo)}
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(4)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D4 – Análise da Causa Raiz</h3>
+                        ${renderPdfHeader('D4 – Análise da Causa Raiz')}
                         <div class="pdf-grid">
                             <div><strong>Causa raiz – Ocorrência:</strong> ${escapeHtml(rnc.d4?.causaRaizOcorrencia || '-')}</div>
                             <div><strong>Causa raiz – Detecção:</strong> ${escapeHtml(rnc.d4?.causaRaizDeteccao || '-')}</div>
@@ -4518,31 +4529,31 @@
                         <ol>${[1,2,3,4,5].map(i => `<li>${escapeHtml(rnc.d4?.ocorrencia?.[`why${i}`] || '-')}</li>`).join('')}</ol>
                         <h4 class="pdf-subtitle">5 Porquês – Detecção</h4>
                         <ol>${[1,2,3,4,5].map(i => `<li>${escapeHtml(rnc.d4?.deteccao?.[`why${i}`] || '-')}</li>`).join('')}</ol>
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(5)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D5 – Ações Corretivas</h3>
+                        ${renderPdfHeader('D5 – Ações Corretivas')}
                         ${renderTabelaAcoesRelatorio(acoesD5)}
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(6)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D6 – Implementação das Ações Corretivas</h3>
+                        ${renderPdfHeader('D6 – Implementação das Ações Corretivas')}
                         ${renderEvidenciasAcoesRelatorio(acoesD5, 'Ação corretiva')}
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(7)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D7 – Ações Preventivas</h3>
+                        ${renderPdfHeader('D7 – Ações Preventivas')}
                         ${renderTabelaAcoesRelatorio(acoesD7, true)}
                         <h4 class="pdf-subtitle">Implementação e Evidências</h4>
                         ${renderEvidenciasAcoesRelatorio(acoesD7, 'Ação preventiva')}
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Relatório 8D</span></div>
+                        ${renderPdfFooter(8)}
                     </section>
 
                     <section class="pdf-page">
-                        <h3 class="pdf-section-title">D8 – Lições Aprendidas e Reconhecimento</h3>
+                        ${renderPdfHeader('D8 – Lições Aprendidas e Reconhecimento')}
                         <h4 class="pdf-subtitle">Lições Aprendidas</h4>
                         <div>${escapeHtml(rnc.d8?.licaoAprendida || '-')}</div>
                         <h4 class="pdf-subtitle">Reconhecimento Individual</h4>
@@ -4557,7 +4568,7 @@
                         </table>
                         <h4 class="pdf-subtitle">Agradecimento Final</h4>
                         <div>${escapeHtml(rnc.d8?.mensagemFinal || '-')}</div>
-                        <div class="pdf-footer"><span>RNC: ${escapeHtml(rnc.numero)}</span><span>Gerado em ${dataGeracao}</span></div>
+                        ${renderPdfFooter(9)}
                     </section>
                 </body>
                 </html>
