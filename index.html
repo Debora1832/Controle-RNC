@@ -1192,6 +1192,11 @@
                 .replace(/'/g, '&#39;');
         }
 
+        function getSafeImageSrc(value) {
+            const src = String(value || '');
+            return /^data:image\/(?:jpeg|jpg|png|gif|webp);base64,[a-zA-Z0-9+/=]+$/.test(src) ? src : '';
+        }
+
         function getPessoaById(id) {
             return pessoasBase.find(pessoa => pessoa.id === Number(id));
         }
@@ -2301,6 +2306,49 @@
                 `;
             } else if (phase.id === 'd2') {
                 content += `
+                    <div class="card" style="padding:1rem; margin-top:0.5rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Dados do Cadastro da RNC</h4>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <input type="text" value="${escapeHtml(rnc.cliente || '')}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Modo de Falha</label>
+                                <input type="text" value="${escapeHtml(rnc.tipoFalha || '')}" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Quantidade de Peças</label>
+                                <input type="text" value="${escapeHtml(rnc.quantidade ?? '')}" readonly>
+                            </div>
+                        </div>
+                        <div class="grid-2" style="margin-top:0.5rem;">
+                            <div class="form-group">
+                                <label>Peça Conforme</label>
+                                ${rnc.fotosPeca?.conforme?.conteudo
+                                    ? (() => {
+                                        const fotoConformeSrc = getSafeImageSrc(rnc.fotosPeca.conforme.conteudo);
+                                        return fotoConformeSrc
+                                            ? `<img src="${escapeHtml(fotoConformeSrc)}" alt="Peça conforme" style="width:100%; max-width:260px; border:1px solid #e2e8f0; border-radius:8px; object-fit:cover;">`
+                                            : `<div style="color:#94a3b8;">Sem foto</div>`;
+                                    })()
+                                    : `<div style="color:#94a3b8;">Sem foto</div>`
+                                }
+                            </div>
+                            <div class="form-group">
+                                <label>Peça Não Conforme</label>
+                                ${rnc.fotosPeca?.naoConforme?.conteudo
+                                    ? (() => {
+                                        const fotoNaoConformeSrc = getSafeImageSrc(rnc.fotosPeca.naoConforme.conteudo);
+                                        return fotoNaoConformeSrc
+                                            ? `<img src="${escapeHtml(fotoNaoConformeSrc)}" alt="Peça não conforme" style="width:100%; max-width:260px; border:1px solid #e2e8f0; border-radius:8px; object-fit:cover;">`
+                                            : `<div style="color:#94a3b8;">Sem foto</div>`;
+                                    })()
+                                    : `<div style="color:#94a3b8;">Sem foto</div>`
+                                }
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Definição do Problema</label>
                         <textarea rows="4" id="d2-problema">${rnc.d2.problema}</textarea>
