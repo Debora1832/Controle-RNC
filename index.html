@@ -1496,6 +1496,18 @@
             return getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.responsavel || rnc.d1?.lider || '-';
         }
 
+        function normalizeNumeroRNC(numero) {
+            return String(numero || '').trim().toUpperCase();
+        }
+
+        const RNC_NUMERO_DUPLICADO_MSG = '⚠️ Já existe uma RNC cadastrada com este número. Informe um número diferente.';
+
+        function existeNumeroRNCDuplicado(numero) {
+            const alvo = normalizeNumeroRNC(numero);
+            if (!alvo) return false;
+            return state.rncs.some(rnc => normalizeNumeroRNC(rnc.numero) === alvo);
+        }
+
         function getStatusConclusao8D(rnc) {
             const concluido = isEtapaConcluida(rnc, 'd8');
             return concluido
@@ -2294,6 +2306,11 @@
                 <div class="card">
                     <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Cadastro de RNC</h3>
                     <form id="cadastroRncForm">
+                        <div class="form-group" style="padding:0.8rem; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; margin-bottom:1rem;">
+                            <label>Número da RNC *</label>
+                            <input type="text" name="numeroRnc" id="numeroRncInput" placeholder="Ex.: RNC-2026-001" required>
+                            <p id="numeroRncValidacao" aria-live="polite" style="font-size: 0.8125rem; color: #dc2626; margin-top: 0.45rem; display:none;"></p>
+                        </div>
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Cliente</label>
@@ -2384,7 +2401,7 @@
                             <label>Descrição da Não Conformidade</label>
                             <textarea rows="3" name="descricao" required></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary">Cadastrar RNC</button>
+                        <button type="submit" class="btn btn-primary" id="cadastroRncSubmitBtn">Cadastrar RNC</button>
                     </form>
                 </div>
             `;
@@ -4016,6 +4033,36 @@
 
             const cadastroRncForm = document.getElementById('cadastroRncForm');
             if (cadastroRncForm) {
+                const numeroRncInput = cadastroRncForm.querySelector('#numeroRncInput');
+                const numeroRncMsg = cadastroRncForm.querySelector('#numeroRncValidacao');
+                const cadastroRncSubmitBtn = cadastroRncForm.querySelector('#cadastroRncSubmitBtn');
+                const validarNumeroRncUnico = () => {
+                    if (!numeroRncInput || !numeroRncMsg || !cadastroRncSubmitBtn) return true;
+                    const numeroInformado = String(numeroRncInput.value || '').trim();
+                    if (!numeroInformado) {
+                        numeroRncInput.setCustomValidity('');
+                        numeroRncMsg.style.display = 'none';
+                        cadastroRncSubmitBtn.disabled = false;
+                        return true;
+                    }
+                    if (existeNumeroRNCDuplicado(numeroInformado)) {
+                        numeroRncInput.setCustomValidity(RNC_NUMERO_DUPLICADO_MSG);
+                        numeroRncMsg.textContent = RNC_NUMERO_DUPLICADO_MSG;
+                        numeroRncMsg.style.display = 'block';
+                        cadastroRncSubmitBtn.disabled = true;
+                        return false;
+                    }
+                    numeroRncInput.setCustomValidity('');
+                    numeroRncMsg.textContent = '';
+                    numeroRncMsg.style.display = 'none';
+                    cadastroRncSubmitBtn.disabled = false;
+                    return true;
+                };
+                if (numeroRncInput) {
+                    numeroRncInput.onblur = validarNumeroRncUnico;
+                    numeroRncInput.oninput = validarNumeroRncUnico;
+                }
+
                 const outrosHidden = cadastroRncForm.querySelector('#outrosEnvolvidosIds');
                 const outrosSelect = cadastroRncForm.querySelector('#outrosEnvolvidosSelect');
                 const adicionarOutroBtn = cadastroRncForm.querySelector('#adicionarOutroEnvolvidoBtn');
@@ -4045,6 +4092,7 @@
 
                 cadastroRncForm.onsubmit = async (e) => {
                     e.preventDefault();
+                    if (!validarNumeroRncUnico()) return;
                     const formData = new FormData(cadastroRncForm);
                     const nextId = state.rncs.length ? Math.max(...state.rncs.map(r => r.id)) + 1 : 1;
                     const hoje = new Date();
@@ -4096,9 +4144,15 @@
                         return;
                     }
 
+                    const numeroRnc = String(formData.get('numeroRnc') || '').trim();
+                    if (existeNumeroRNCDuplicado(numeroRnc)) {
+                        alert(RNC_NUMERO_DUPLICADO_MSG);
+                        return;
+                    }
+
                     const novaRnc = {
                         id: nextId,
-                        numero: `RNC-${hoje.getFullYear()}-${String(nextId).padStart(3, '0')}`,
+                        numero: numeroRnc,
                         cliente: formData.get('cliente'),
                         codigoPeca: formData.get('codigoPeca'),
                         tipoFalha: formData.get('tipoFalha'),
