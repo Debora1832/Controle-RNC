@@ -941,6 +941,7 @@
             currentUser: null,
             selectedRNC: null,
             activeTab: 'd1',
+            activeD4SubTab: 'principal',
             rncs: [
                 {
                     id: 1,
@@ -1195,6 +1196,56 @@
         function getSafeImageSrc(value) {
             const src = String(value || '');
             return /^data:image\/(?:jpeg|jpg|png|gif|webp);base64,[a-zA-Z0-9+/=]+$/.test(src) ? src : '';
+        }
+
+        function getUltimoPorquePreenchido(analise) {
+            for (let i = 5; i > 0; i--) {
+                const valor = String(analise?.[`why${i}`] || '').trim();
+                if (valor) return valor;
+            }
+            return '';
+        }
+
+        function consolidateD4Data(d4) {
+            d4.ocorrencia = d4.ocorrencia || { why1: '', why2: '', why3: '', why4: '', why5: '' };
+            d4.deteccao = d4.deteccao || { why1: '', why2: '', why3: '', why4: '', why5: '' };
+            d4.causaRaizOcorrencia = getUltimoPorquePreenchido(d4.ocorrencia);
+            d4.causaRaizDeteccao = getUltimoPorquePreenchido(d4.deteccao);
+            // Compatibilidade com estrutura legada do D4.
+            for (let i = 1; i <= 5; i++) d4[`why${i}`] = d4.ocorrencia[`why${i}`];
+            d4.causaRaiz = d4.causaRaizOcorrencia || '';
+        }
+
+        function ensureD4Structure(rnc) {
+            if (!rnc.d4) rnc.d4 = {};
+            rnc.d4.ocorrencia = rnc.d4.ocorrencia || {
+                why1: rnc.d4.why1 || '',
+                why2: rnc.d4.why2 || '',
+                why3: rnc.d4.why3 || '',
+                why4: rnc.d4.why4 || '',
+                why5: rnc.d4.why5 || ''
+            };
+            rnc.d4.deteccao = rnc.d4.deteccao || {
+                why1: '',
+                why2: '',
+                why3: '',
+                why4: '',
+                why5: ''
+            };
+            consolidateD4Data(rnc.d4);
+        }
+
+        function sincronizarD4EmEdicao() {
+            if (!state.selectedRNC || state.activeTab !== 'd4') return;
+            ensureD4Structure(state.selectedRNC);
+            const d4 = state.selectedRNC.d4;
+            for (let i = 1; i <= 5; i++) {
+                const oc = document.getElementById(`d4-oc-why${i}`);
+                const det = document.getElementById(`d4-det-why${i}`);
+                if (oc) d4.ocorrencia[`why${i}`] = oc.value;
+                if (det) d4.deteccao[`why${i}`] = det.value;
+            }
+            consolidateD4Data(d4);
         }
 
         function getPessoaById(id) {
@@ -2405,32 +2456,42 @@
                     ` : ''}
                 `;
             } else if (phase.id === 'd4') {
+                ensureD4Structure(rnc);
+                const d4 = rnc.d4;
                 content += `
-                    <h4 style="font-weight: 700; margin-bottom: 1rem;">Análise 5 Porquês</h4>
-                    <div class="form-group">
-                        <label>1º Por quê?</label>
-                        <textarea rows="2" id="d4-why1">${rnc.d4.why1}</textarea>
+                    <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+                        <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'principal' ? 'active' : ''}" data-d4-subtab="principal">Principal</button>
+                        <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'ocorrencia' ? 'active' : ''}" data-d4-subtab="ocorrencia">Ocorrência</button>
+                        <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'deteccao' ? 'active' : ''}" data-d4-subtab="deteccao">Detecção</button>
                     </div>
-                    <div class="form-group">
-                        <label>2º Por quê?</label>
-                        <textarea rows="2" id="d4-why2">${rnc.d4.why2}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>3º Por quê?</label>
-                        <textarea rows="2" id="d4-why3">${rnc.d4.why3}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>4º Por quê?</label>
-                        <textarea rows="2" id="d4-why4">${rnc.d4.why4}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>5º Por quê?</label>
-                        <textarea rows="2" id="d4-why5">${rnc.d4.why5}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Causa Raiz Identificada</label>
-                        <textarea rows="3" id="d4-causa">${rnc.d4.causaRaiz}</textarea>
-                    </div>
+                    ${state.activeD4SubTab === 'principal' ? `
+                        <div class="form-group">
+                            <label for="d4-causa-raiz-ocorrencia">Causa Raiz – Ocorrência</label>
+                            <input type="text" id="d4-causa-raiz-ocorrencia" value="${escapeHtml(getUltimoPorquePreenchido(d4.ocorrencia))}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="d4-causa-raiz-deteccao">Causa Raiz – Detecção</label>
+                            <input type="text" id="d4-causa-raiz-deteccao" value="${escapeHtml(getUltimoPorquePreenchido(d4.deteccao))}" readonly>
+                        </div>
+                    ` : ''}
+                    ${state.activeD4SubTab === 'ocorrencia' ? `
+                        <h4 style="font-weight: 700; margin-bottom: 1rem;">Análise 5 Porquês - Ocorrência</h4>
+                        ${[1,2,3,4,5].map(i => `
+                            <div class="form-group">
+                                <label>${i}º Por quê?</label>
+                                <textarea rows="2" id="d4-oc-why${i}">${escapeHtml(d4.ocorrencia[`why${i}`] || '')}</textarea>
+                            </div>
+                        `).join('')}
+                    ` : ''}
+                    ${state.activeD4SubTab === 'deteccao' ? `
+                        <h4 style="font-weight: 700; margin-bottom: 1rem;">Análise 5 Porquês - Detecção</h4>
+                        ${[1,2,3,4,5].map(i => `
+                            <div class="form-group">
+                                <label>${i}º Por quê?</label>
+                                <textarea rows="2" id="d4-det-why${i}">${escapeHtml(d4.deteccao[`why${i}`] || '')}</textarea>
+                            </div>
+                        `).join('')}
+                    ` : ''}
                 `;
             } else if (phase.id === 'd5') {
                 const acoesD5 = rnc.d5.listaAcoes || [];
@@ -2775,12 +2836,15 @@
                     state.rncs[rncIndex].d3.anexoAlertaAssinadoConteudo = base64;
                 }
             } else if (phaseId === 'd4') {
-                state.rncs[rncIndex].d4.why1 = document.getElementById('d4-why1').value;
-                state.rncs[rncIndex].d4.why2 = document.getElementById('d4-why2').value;
-                state.rncs[rncIndex].d4.why3 = document.getElementById('d4-why3').value;
-                state.rncs[rncIndex].d4.why4 = document.getElementById('d4-why4').value;
-                state.rncs[rncIndex].d4.why5 = document.getElementById('d4-why5').value;
-                state.rncs[rncIndex].d4.causaRaiz = document.getElementById('d4-causa').value;
+                ensureD4Structure(state.rncs[rncIndex]);
+                const d4 = state.rncs[rncIndex].d4;
+                for (let i = 1; i <= 5; i++) {
+                    const oc = document.getElementById(`d4-oc-why${i}`);
+                    const det = document.getElementById(`d4-det-why${i}`);
+                    if (oc) d4.ocorrencia[`why${i}`] = oc.value;
+                    if (det) d4.deteccao[`why${i}`] = det.value;
+                }
+                consolidateD4Data(d4);
             } else if (phaseId === 'd5') {
                 state.rncs[rncIndex].d5.acoesCorretivas = document.getElementById('d5-acoes').value;
             } else if (phaseId === 'd6') {
@@ -2892,6 +2956,7 @@
                 row.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == row.dataset.rncId);
                     state.activeTab = 'd1';
+                    state.activeD4SubTab = 'principal';
                     render();
                 };
             });
@@ -2900,6 +2965,7 @@
                 btn.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == btn.dataset.rncId);
                     state.activeTab = 'd1';
+                    state.activeD4SubTab = 'principal';
                     render();
                 };
             });
@@ -3091,9 +3157,20 @@
                 };
             }
             
-            document.querySelectorAll('.modal-tab').forEach(tab => {
+            document.querySelectorAll('.modal-tab:not(.d4-subtab)').forEach(tab => {
                 tab.onclick = () => {
+                    if (!tab.dataset.tab) return;
+                    if (state.activeTab === 'd4') sincronizarD4EmEdicao();
                     state.activeTab = tab.dataset.tab;
+                    if (state.activeTab === 'd4') state.activeD4SubTab = 'principal';
+                    render();
+                };
+            });
+
+            document.querySelectorAll('.d4-subtab').forEach(tab => {
+                tab.onclick = () => {
+                    sincronizarD4EmEdicao();
+                    state.activeD4SubTab = tab.dataset.d4Subtab;
                     render();
                 };
             });
