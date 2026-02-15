@@ -1413,8 +1413,53 @@
             return pendencias;
         }
 
+        function isEtapaConcluida(rnc, phaseId) {
+            if (phaseId === 'd1') return true;
+            if (phaseId === 'd2') {
+                // D2 é concluída no cadastro; fallback garante compatibilidade com registros legados.
+                return rnc.d2?.etapaConcluida === true || (!!String(rnc.descricao || '').trim() && !!String(rnc.cliente || '').trim() && !!String(rnc.tipoFalha || '').trim());
+            }
+            if (phaseId === 'd3') return !!rnc.d3?.etapaConcluida;
+            if (phaseId === 'd4') {
+                ensureD4Structure(rnc);
+                return !!(getUltimoPorquePreenchido(rnc.d4.ocorrencia) && getUltimoPorquePreenchido(rnc.d4.deteccao));
+            }
+            // No D5 a conclusão considera ações cadastradas, não necessariamente concluídas.
+            if (phaseId === 'd5') return (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).length > 0;
+            if (phaseId === 'd6') {
+                const acoes = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
+                return acoes.length > 0 && acoes.every(acao => acao.status === 'CONCLUIDA' && (acao.evidencias?.length || 0) > 0);
+            }
+            if (phaseId === 'd7') {
+                const acoes = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
+                return acoes.length > 0 && acoes.every(acao => acao.status === 'CONCLUIDA' && (acao.evidencias?.length || 0) > 0);
+            }
+            if (phaseId === 'd8') return !!rnc.d8?.concluida;
+            return false;
+        }
+
+        function canAcessarEtapa(rnc, phaseId) {
+            const targetIndex = phases.findIndex(p => p.id === phaseId);
+            if (targetIndex <= 0) return true;
+            for (let i = 0; i < targetIndex; i++) {
+                if (!isEtapaConcluida(rnc, phases[i].id)) return false;
+            }
+            return true;
+        }
+
+        function getPrimeiraEtapaPendente(rnc) {
+            const pendente = phases.find(phase => !isEtapaConcluida(rnc, phase.id));
+            return pendente ? pendente.id : null;
+        }
+
+        function sincronizarFluxo8D(rnc) {
+            if (!rnc) return;
+            const proximaEtapa = getPrimeiraEtapaPendente(rnc);
+            rnc.faseAtual = proximaEtapa || 'd8';
+        }
+
         function isRNCAtiva(rnc) {
-            return rnc.faseAtual !== 'd8';
+            return !isEtapaConcluida(rnc, 'd8');
         }
 
         function getCadastroConfig(tipo) {
@@ -1739,6 +1784,7 @@
 
         function render() {
             const app = document.getElementById('app');
+            state.rncs.forEach(rnc => sincronizarFluxo8D(rnc));
             
             if (state.currentPage === 'login') {
                 app.innerHTML = renderLogin();
@@ -2383,6 +2429,8 @@
             if (!state.selectedRNC) return '';
             
             const rnc = state.selectedRNC;
+            sincronizarFluxo8D(rnc);
+            if (!canAcessarEtapa(rnc, state.activeTab)) state.activeTab = rnc.faseAtual;
             const currentPhaseIndex = phases.findIndex(p => p.id === rnc.faseAtual);
             
             return `
@@ -2400,8 +2448,8 @@
                             <div class="phase-tracker">
                                 ${phases.map((phase, index) => `
                                     <div class="phase-step">
-                                        <div class="phase-circle ${index < currentPhaseIndex ? 'completed' : index === currentPhaseIndex ? 'active' : ''}">
-                                            ${index < currentPhaseIndex ? renderIcon('check') : phase.short}
+                                        <div class="phase-circle ${isEtapaConcluida(rnc, phase.id) ? 'completed' : index === currentPhaseIndex ? 'active' : ''}">
+                                            ${isEtapaConcluida(rnc, phase.id) ? renderIcon('check') : phase.short}
                                         </div>
                                         <p style="font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem;">${phase.name.replace(/D\d - /, '')}</p>
                                     </div>
@@ -2410,7 +2458,7 @@
                             
                             <div class="modal-tabs">
                                 ${phases.map(phase => `
-                                    <button class="modal-tab ${state.activeTab === phase.id ? 'active' : ''}" data-tab="${phase.id}">
+                                    <button class="modal-tab ${state.activeTab === phase.id ? 'active' : ''}" data-tab="${phase.id}" ${canAcessarEtapa(rnc, phase.id) ? '' : 'disabled'}>
                                         ${phase.name}
                                     </button>
                                 `).join('')}
@@ -3042,6 +3090,8 @@
                 if (idxAcao >= 0) state.rncs[rncIndex].d5.listaAcoes[idxAcao] = payload;
                 else state.rncs[rncIndex].d5.listaAcoes.push(payload);
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
+                state.activeTab = state.selectedRNC.faseAtual;
                 const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3142,6 +3192,7 @@
                 if (!ok) return;
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
                 await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3158,6 +3209,8 @@
                 acao.dataConclusao = new Date().toISOString();
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
+                state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3237,6 +3290,8 @@
                 if (idxAcao >= 0) acoes[idxAcao] = payload;
                 else acoes.push(payload);
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
+                state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3340,6 +3395,7 @@
                 if (!ok) return;
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
                 await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3356,6 +3412,8 @@
                 acao.dataConclusao = new Date().toISOString();
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
+                sincronizarFluxo8D(state.selectedRNC);
+                state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
                 overlay.remove();
                 render();
@@ -3397,6 +3455,8 @@
             }
 
             state.selectedRNC = rnc;
+            sincronizarFluxo8D(state.selectedRNC);
+            if (concluir) state.activeTab = state.selectedRNC.faseAtual;
             const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
             alert(salvoNoFirebase
                 ? (concluir ? 'D8 concluído e 8D encerrado com sucesso!' : 'D8 salvo com sucesso!')
@@ -3450,8 +3510,11 @@
             }
             
             state.selectedRNC = state.rncs[rncIndex];
+            sincronizarFluxo8D(state.selectedRNC);
+            state.activeTab = state.selectedRNC.faseAtual;
             const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
             alert(salvoNoFirebase ? 'Dados salvos com sucesso!' : 'Dados salvos localmente. Firebase indisponível.');
+            render();
         }
 
         function solicitarReprazo(phaseId, num) {
@@ -3546,7 +3609,8 @@
             document.querySelectorAll('.rnc-row').forEach(row => {
                 row.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == row.dataset.rncId);
-                    state.activeTab = 'd1';
+                    sincronizarFluxo8D(state.selectedRNC);
+                    state.activeTab = state.selectedRNC?.faseAtual || 'd1';
                     state.activeD4SubTab = 'principal';
                     render();
                 };
@@ -3555,7 +3619,8 @@
             document.querySelectorAll('.btn-view').forEach(btn => {
                 btn.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == btn.dataset.rncId);
-                    state.activeTab = 'd1';
+                    sincronizarFluxo8D(state.selectedRNC);
+                    state.activeTab = state.selectedRNC?.faseAtual || 'd1';
                     state.activeD4SubTab = 'principal';
                     render();
                 };
@@ -3751,6 +3816,12 @@
             document.querySelectorAll('.modal-tab:not(.d4-subtab)').forEach(tab => {
                 tab.onclick = () => {
                     if (!tab.dataset.tab) return;
+                    if (!state.selectedRNC || !canAcessarEtapa(state.selectedRNC, tab.dataset.tab)) {
+                        const targetIndex = phases.findIndex(p => p.id === tab.dataset.tab);
+                        const etapaBloqueante = targetIndex > 0 ? phases[targetIndex - 1]?.name : 'etapa anterior';
+                        alert(`Esta etapa está bloqueada. Conclua ${etapaBloqueante} para continuar.`);
+                        return;
+                    }
                     if (state.activeTab === 'd4') sincronizarD4EmEdicao();
                     state.activeTab = tab.dataset.tab;
                     if (state.activeTab === 'd4') state.activeD4SubTab = 'principal';
