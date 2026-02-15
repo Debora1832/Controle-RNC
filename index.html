@@ -14,7 +14,7 @@
         
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f8fafc;
+            background: #f1f5f9;
             color: #0f172a;
         }
         
@@ -25,16 +25,16 @@
             top: 0;
             bottom: 0;
             width: 280px;
-            background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+            background: #0b1f3a;
             color: white;
             overflow-y: auto;
-            box-shadow: 4px 0 24px rgba(30, 64, 175, 0.15);
+            box-shadow: 4px 0 24px rgba(11, 31, 58, 0.25);
             z-index: 100;
         }
         
         .sidebar-header {
             padding: 2rem 1.5rem;
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 0.04);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         
@@ -84,8 +84,9 @@
         }
         
         .nav-item.active {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(37, 99, 235, 0.35);
             font-weight: 600;
+            border-left: 3px solid #93c5fd;
         }
         
         .nav-badge {
@@ -105,8 +106,8 @@
         }
         
         .top-bar {
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(90deg, #0b1f3a 0%, #14345c 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.14);
             padding: 1.25rem 2rem;
             position: sticky;
             top: 0;
@@ -114,6 +115,33 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            color: #f8fafc;
+        }
+
+        .top-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-width: 0;
+        }
+
+        .top-logo {
+            font-size: 1.15rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: #ffffff;
+            white-space: nowrap;
+        }
+
+        .top-institutional {
+            font-size: 0.69rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.72);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 520px;
         }
 
         .top-bar-actions {
@@ -126,9 +154,9 @@
             width: 42px;
             height: 42px;
             border-radius: 12px;
-            border: 1px solid #dbeafe;
-            background: #eff6ff;
-            color: #1d4ed8;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,6 +179,28 @@
             justify-content: center;
             padding: 0 0.3rem;
         }
+
+        .top-user {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+
+        .top-user-meta {
+            text-align: right;
+            line-height: 1.2;
+        }
+
+        .top-user-name {
+            font-size: 0.86rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .top-user-role {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.75);
+        }
         
         .content-area {
             padding: 2rem;
@@ -166,9 +216,9 @@
         /* CARDS */
         .card {
             background: white;
-            border-radius: 16px;
+            border-radius: 14px;
             padding: 1.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
             margin-bottom: 1.5rem;
             border: 1px solid #e2e8f0;
         }
@@ -328,6 +378,7 @@
         .badge.green { background: #d1fae5; color: #065f46; }
         .badge.red { background: #fee2e2; color: #991b1b; }
         .badge.orange { background: #fed7aa; color: #92400e; }
+        .badge.purple { background: #ede9fe; color: #6d28d9; }
         
         /* BOTÕES */
         .btn {
@@ -342,7 +393,7 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: #1d4ed8;
             color: white;
         }
         
@@ -362,8 +413,8 @@
         }
         
         .btn-secondary {
-            background: #f1f5f9;
-            color: #475569;
+            background: #e2e8f0;
+            color: #1e293b;
         }
         
         /* MODAL */
@@ -1195,7 +1246,7 @@
         };
 
         const users = [
-            { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", initials: "DS" }
+            { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", planta: "Matriz", initials: "DS" }
         ];
 
         let pessoasBase = [
@@ -1934,7 +1985,7 @@
             return `
                 <div class="sidebar">
                     <div class="sidebar-header">
-                        <h2>RNC 8D System</h2>
+                        <h2>MAGIUS • 8D</h2>
                     </div>
                     <div class="user-info">
                         <div class="user-avatar">${state.currentUser.initials}</div>
@@ -1967,27 +2018,25 @@
         }
 
         function renderTopBar() {
-            const pageTitle = state.currentPage === 'dashboard'
-                ? 'Dashboard'
-                : state.currentPage === 'cadastro-rnc'
-                    ? 'Cadastro de RNC'
-                    : state.currentPage === 'cadastro-pessoas'
-                        ? 'Cadastros Base'
-                    : state.currentPage === 'relatorios'
-                        ? 'Relatórios Qualificados'
-                    : 'Controle 8D';
             const alertas = state.rncs.filter(r => r.status === 'AT_RISK').length;
             return `
                 <div class="top-bar">
-                    <h2 style="font-size: 1.25rem; font-weight: 700;">
-                        ${pageTitle}
-                    </h2>
+                    <div class="top-brand">
+                        <div class="top-logo">MAGIUS</div>
+                        <div class="top-institutional">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
+                    </div>
                     <div class="top-bar-actions">
                         <button class="notification-btn" type="button" title="Notificações">
                             ${renderIcon('bell')}
                             <span class="notification-badge">${alertas}</span>
                         </button>
-                        <div class="user-avatar" style="width: 38px; height: 38px; margin: 0; font-size: 0.9rem;">${state.currentUser.initials}</div>
+                        <div class="top-user">
+                            <div class="top-user-meta">
+                                <div class="top-user-name">${escapeHtml(state.currentUser.name)}</div>
+                                <div class="top-user-role">${escapeHtml(state.currentUser.role)} • ${escapeHtml(state.currentUser.planta || 'Matriz')}</div>
+                            </div>
+                            <div class="user-avatar" style="width: 38px; height: 38px; margin: 0; font-size: 0.9rem;">${state.currentUser.initials}</div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -3700,10 +3749,13 @@
                     <title>Relatório 8D - ${escapeHtml(rnc.numero)}</title>
                     <style>
                         @page { size: A4 portrait; margin: 16mm; }
-                        body { font-family: Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
+                        body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
                         .pdf-page { page-break-after: always; padding-bottom: 18mm; }
                         .pdf-page:last-child { page-break-after: auto; }
                         .pdf-header { border-bottom:2px solid #0f172a; padding-bottom:8px; margin-bottom:10px; }
+                        .pdf-brand { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+                        .pdf-logo { font-weight:800; letter-spacing:0.08em; color:#0b1f3a; }
+                        .pdf-frase { font-size:9px; text-transform:uppercase; letter-spacing:0.04em; color:#64748b; max-width:70%; text-align:right; }
                         .pdf-header h1 { margin:0; font-size:20px; }
                         .pdf-header h2 { margin:6px 0 0; font-size:16px; color:#1d4ed8; }
                         .pdf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px 14px; margin-top:10px; }
@@ -3729,6 +3781,10 @@
                 <body>
                     <section class="pdf-page">
                         <div class="pdf-header">
+                            <div class="pdf-brand">
+                                <div class="pdf-logo">MAGIUS</div>
+                                <div class="pdf-frase">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
+                            </div>
                             <h1>Relatório 8D</h1>
                             <h2>${escapeHtml(rnc.numero)}</h2>
                         </div>
