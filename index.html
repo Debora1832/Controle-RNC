@@ -1367,6 +1367,34 @@
             `).join('');
         }
 
+        function getOutrosEnvolvidosSelecionados() {
+            const hidden = document.getElementById('outrosEnvolvidosIds');
+            if (!hidden || !hidden.value) return [];
+            const value = String(hidden.value || '').trim();
+            if (!value) return [];
+            return value.split(',').map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0);
+        }
+
+        function renderOutrosEnvolvidosSelecionados() {
+            const container = document.getElementById('outrosEnvolvidosSelecionados');
+            if (!container) return;
+            const selecionados = getOutrosEnvolvidosSelecionados();
+            if (!selecionados.length) {
+                container.innerHTML = '<p style="font-size:0.8125rem; color:#64748b;">Nenhum envolvido adicional selecionado.</p>';
+                return;
+            }
+            container.innerHTML = selecionados.map(id => {
+                const pessoa = getPessoaById(id);
+                if (!pessoa) return '';
+                return `
+                    <span style="display:inline-flex; align-items:center; gap:0.35rem; border:1px solid #cbd5e1; border-radius:999px; padding:0.25rem 0.6rem; font-size:0.8125rem;">
+                        ${escapeHtml(pessoa.nome)} (${escapeHtml(pessoa.cargo)} • ${escapeHtml(pessoa.planta)})
+                        <button type="button" data-outro-id="${pessoa.id}" class="btn-remover-outro" style="border:none; background:transparent; color:#dc2626; cursor:pointer; font-weight:700;">×</button>
+                    </span>
+                `;
+            }).join('');
+        }
+
         function montarEquipeD1(rnc) {
             const equipe = [];
             if (rnc.equipeResponsavel?.responsavelContencaoId) {
@@ -1910,7 +1938,7 @@
                             <span class="nav-badge">${state.rncs.filter(r => r.status === 'AT_RISK').length}</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
-                            <span>Cadastro RNC (D1)</span>
+                            <span>Cadastro de RNC</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="cadastro-pessoas">
                             <span>Cadastros Base</span>
@@ -1930,7 +1958,7 @@
             const pageTitle = state.currentPage === 'dashboard'
                 ? 'Dashboard'
                 : state.currentPage === 'cadastro-rnc'
-                    ? 'Cadastro RNC (D1)'
+                    ? 'Cadastro de RNC'
                     : state.currentPage === 'cadastro-pessoas'
                         ? 'Cadastros Base'
                     : state.currentPage === 'relatorios'
@@ -2262,7 +2290,7 @@
 
         function renderCadastroRNC() {
             return `
-                <h1 class="page-title">Cadastro de RNC - D1</h1>
+                <h1 class="page-title">Cadastro de RNC</h1>
                 <div class="card">
                     <h3 style="font-size: 1.125rem; font-weight: 800; margin-bottom: 1.25rem;">Cadastro de RNC</h3>
                     <form id="cadastroRncForm">
@@ -2321,6 +2349,7 @@
                                     <option value="">Selecione</option>
                                     ${getPessoasOptions()}
                                 </select>
+                                <p style="font-size: 0.75rem; color: #1d4ed8; margin-top: 0.5rem;">Regra automática: o Analista da Qualidade será o Líder da Equipe 8D.</p>
                             </div>
                             <div class="form-group">
                                 <label>Responsável da Contenção</label>
@@ -2331,10 +2360,16 @@
                             </div>
                             <div class="form-group">
                                 <label>Outros Envolvidos</label>
-                                <select name="outrosEnvolvidosIds" id="outrosEnvolvidosIds" multiple size="5" aria-label="Selecione outros envolvidos da RNC" aria-describedby="outrosEnvolvidosHint">
-                                    ${getPessoasOptions()}
-                                </select>
-                                <p id="outrosEnvolvidosHint" style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Use Ctrl (ou Cmd no Mac) para selecionar múltiplos nomes.</p>
+                                <div style="display:flex; gap:0.5rem; align-items:center;">
+                                    <select id="outrosEnvolvidosSelect" aria-label="Selecione outros envolvidos da RNC">
+                                        <option value="">Selecione</option>
+                                        ${getPessoasOptions()}
+                                    </select>
+                                    <button type="button" class="btn btn-secondary" id="adicionarOutroEnvolvidoBtn">Adicionar</button>
+                                </div>
+                                <input type="hidden" name="outrosEnvolvidosIds" id="outrosEnvolvidosIds" value="">
+                                <div id="outrosEnvolvidosSelecionados" style="margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.4rem;"></div>
+                                <p id="outrosEnvolvidosHint" style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">Selecione um nome e clique em adicionar. Você pode remover depois.</p>
                             </div>
                             <div class="form-group">
                                 <label>Foto da Peça Conforme</label>
@@ -2602,7 +2637,7 @@
                                     <tr><td colspan="4" style="text-align:center; color:#64748b;">Equipe não definida no cadastro da RNC.</td></tr>
                                 ` : equipeD1.map(item => `
                                     <tr>
-                                        <td>${escapeHtml(item.pessoa.nome)}</td>
+                                        <td>${escapeHtml(item.pessoa.nome)}${item.funcaoRnc === 'Analista da Qualidade' ? ' <span class="badge blue" style="margin-left:0.35rem;">Líder da Equipe</span>' : ''}</td>
                                         <td>${escapeHtml(item.funcaoRnc)}</td>
                                         <td>${escapeHtml(item.pessoa.setor || '-')}</td>
                                         <td>${escapeHtml(item.pessoa.planta || '-')}</td>
@@ -3981,6 +4016,33 @@
 
             const cadastroRncForm = document.getElementById('cadastroRncForm');
             if (cadastroRncForm) {
+                const outrosHidden = cadastroRncForm.querySelector('#outrosEnvolvidosIds');
+                const outrosSelect = cadastroRncForm.querySelector('#outrosEnvolvidosSelect');
+                const adicionarOutroBtn = cadastroRncForm.querySelector('#adicionarOutroEnvolvidoBtn');
+                const outrosSelecionadosContainer = cadastroRncForm.querySelector('#outrosEnvolvidosSelecionados');
+                if (outrosHidden && outrosSelect && adicionarOutroBtn && outrosSelecionadosContainer) {
+                    renderOutrosEnvolvidosSelecionados();
+                    adicionarOutroBtn.onclick = () => {
+                        const novoId = Number(outrosSelect.value);
+                        if (!novoId) return;
+                        const ids = getOutrosEnvolvidosSelecionados();
+                        if (!ids.includes(novoId)) {
+                            ids.push(novoId);
+                            outrosHidden.value = ids.join(',');
+                            renderOutrosEnvolvidosSelecionados();
+                        }
+                        outrosSelect.value = '';
+                    };
+                    outrosSelecionadosContainer.onclick = (event) => {
+                        const target = event.target.closest('.btn-remover-outro');
+                        if (!target) return;
+                        const removerId = Number(target.dataset.outroId);
+                        const ids = getOutrosEnvolvidosSelecionados().filter(id => id !== removerId);
+                        outrosHidden.value = ids.join(',');
+                        renderOutrosEnvolvidosSelecionados();
+                    };
+                }
+
                 cadastroRncForm.onsubmit = async (e) => {
                     e.preventDefault();
                     const formData = new FormData(cadastroRncForm);
@@ -3996,7 +4058,9 @@
                     const analistaEngenhariaId = Number(formData.get('analistaEngenhariaId'));
                     const analistaQualidadeId = Number(formData.get('analistaQualidadeId'));
                     const responsavelContencaoId = Number(formData.get('responsavelContencaoId'));
-                    const outrosEnvolvidosIds = Array.from(cadastroRncForm.querySelector('#outrosEnvolvidosIds').selectedOptions).map(option => Number(option.value));
+                    const outrosEnvolvidosIds = String(formData.get('outrosEnvolvidosIds') || '').trim()
+                        ? String(formData.get('outrosEnvolvidosIds') || '').split(',').map(id => Number(id)).filter(id => Number.isFinite(id) && id > 0)
+                        : [];
 
                     const analistaEngenharia = getPessoaById(analistaEngenhariaId);
                     const analistaQualidade = getPessoaById(analistaQualidadeId);
