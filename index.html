@@ -184,6 +184,7 @@
             display: flex;
             align-items: center;
             gap: 0.7rem;
+            cursor: pointer;
         }
 
         .top-user-meta {
@@ -1052,6 +1053,8 @@
         let state = {
             currentPage: 'login',
             currentUser: null,
+            perfilModalAberto: false,
+            perfilAbaAtiva: 'perfil',
             selectedRNC: null,
             activeTab: 'd1',
             activeD4SubTab: 'principal',
@@ -1547,6 +1550,30 @@
             return getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.responsavel || rnc.d1?.lider || '-';
         }
 
+        function isAcaoEmAtrasoAberta(acao, normalizador) {
+            const acaoNormalizada = normalizador(acao);
+            if (acaoNormalizada.status === 'CONCLUIDA') return false;
+            return obterIndicadorPrazoAcao(acaoNormalizada).className === 'red';
+        }
+
+        function isRncEmRisco(rnc) {
+            if (isEtapaConcluida(rnc, 'd8')) return false;
+            const etapasAtrasadas = getEtapasEmAtraso(rnc);
+            if (etapasAtrasadas.length > 0) return true;
+            const acoesCorretivasAtrasadas = (rnc.d5?.listaAcoes || []).some(acao => isAcaoEmAtrasoAberta(acao, normalizeAcaoD5));
+            if (acoesCorretivasAtrasadas) return true;
+            const acoesPreventivasAtrasadas = (rnc.d7?.listaAcoes || []).some(acao => isAcaoEmAtrasoAberta(acao, normalizeAcaoD7));
+            return acoesPreventivasAtrasadas;
+        }
+
+        function getStatusRncValue(rnc) {
+            return isRncEmRisco(rnc) ? 'AT_RISK' : 'ON_TIME';
+        }
+
+        function validatePasswordComplexity(password) {
+            return /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+        }
+
         function normalizeNumeroRNC(numero) {
             return String(numero || '').trim().toUpperCase();
         }
@@ -1953,6 +1980,7 @@
                         </div>
                     </div>
                     ${renderModal()}
+                    ${renderPerfilModal()}
                 `;
             }
             
@@ -1998,7 +2026,7 @@
                         </div>
                         <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle">
                             <span>Controle 8D</span>
-                            <span class="nav-badge">${state.rncs.filter(r => r.status === 'AT_RISK').length}</span>
+                            <span class="nav-badge">${state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length}</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
                             <span>Cadastro de RNC</span>
@@ -2018,7 +2046,7 @@
         }
 
         function renderTopBar() {
-            const alertas = state.rncs.filter(r => r.status === 'AT_RISK').length;
+            const alertas = state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length;
             return `
                 <div class="top-bar">
                     <div class="top-brand">
@@ -2030,7 +2058,7 @@
                             ${renderIcon('bell')}
                             <span class="notification-badge">${alertas}</span>
                         </button>
-                        <div class="top-user">
+                        <div class="top-user" id="abrirPerfilModal" role="button" tabindex="0" title="Perfil e segurança">
                             <div class="top-user-meta">
                                 <div class="top-user-name">${escapeHtml(state.currentUser.name)}</div>
                                 <div class="top-user-role">${escapeHtml(state.currentUser.role)} • ${escapeHtml(state.currentUser.planta || 'Matriz')}</div>
@@ -2042,11 +2070,60 @@
             `;
         }
 
+        function renderPerfilModal() {
+            if (!state.perfilModalAberto || !state.currentUser) return '';
+            return `
+                <div class="modal-overlay active" id="perfilModal">
+                    <div class="modal-content" style="max-width: 620px;">
+                        <div class="modal-header">
+                            <div>
+                                <h2 class="modal-title">Perfil do Usuário</h2>
+                                <p style="color:#64748b; margin-top:0.4rem;">Gerencie seus dados e segurança sem sair da tela atual.</p>
+                            </div>
+                            <button class="modal-close" id="fecharPerfilModal">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="modal-tabs">
+                                <button type="button" class="modal-tab profile-modal-tab ${state.perfilAbaAtiva === 'perfil' ? 'active' : ''}" data-perfil-tab="perfil">Perfil</button>
+                                <button type="button" class="modal-tab profile-modal-tab ${state.perfilAbaAtiva === 'seguranca' ? 'active' : ''}" data-perfil-tab="seguranca">Segurança / Senha</button>
+                            </div>
+                            <div class="tab-content ${state.perfilAbaAtiva === 'perfil' ? 'active' : ''}">
+                                <div class="card" style="margin-bottom:0;">
+                                    <p><strong>Nome:</strong> ${escapeHtml(state.currentUser.name)}</p>
+                                    <p style="margin-top:0.5rem;"><strong>Cargo:</strong> ${escapeHtml(state.currentUser.role)}</p>
+                                    <p style="margin-top:0.5rem;"><strong>Planta:</strong> ${escapeHtml(state.currentUser.planta || 'Matriz')}</p>
+                                    <p style="margin-top:0.5rem;"><strong>E-mail:</strong> ${escapeHtml(state.currentUser.email || '-')}</p>
+                                </div>
+                            </div>
+                            <div class="tab-content ${state.perfilAbaAtiva === 'seguranca' ? 'active' : ''}">
+                                <form id="segurancaSenhaForm">
+                                    <div class="form-group">
+                                        <label>Senha atual</label>
+                                        <input type="password" name="senhaAtual" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Nova senha</label>
+                                        <input type="password" name="novaSenha" minlength="8" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Confirmar nova senha</label>
+                                        <input type="password" name="confirmarNovaSenha" minlength="8" required>
+                                    </div>
+                                    <p id="segurancaSenhaMsg" style="font-size:0.875rem; margin-bottom:0.75rem; color:#64748b;"></p>
+                                    <button type="submit" class="btn btn-primary">Atualizar senha</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function renderDashboard() {
             // Cálculos de métricas básicas
             const total = state.rncs.length;
-            const noPrazo = state.rncs.filter(r => r.status === "ON_TIME").length;
-            const emRisco = state.rncs.filter(r => r.status === "AT_RISK").length;
+            const noPrazo = state.rncs.filter(r => getStatusRncValue(r) === "ON_TIME").length;
+            const emRisco = state.rncs.filter(r => getStatusRncValue(r) === "AT_RISK").length;
             
             // Cálculos Lean
             const taxaNoPrazo = total > 0 ? ((noPrazo / total) * 100).toFixed(1) : 0;
@@ -2098,8 +2175,6 @@
             };
             
             return `
-                <h1 class="page-title">Dashboard Executivo</h1>
-                
                 <!-- Métricas Principais -->
                 <div class="stats-grid">
                     <div class="stat-card fade-in-up stagger-1" data-filter="all">
@@ -2278,7 +2353,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            ${state.rncs.map(rnc => `
+                            ${state.rncs.map(rnc => {
+                                const statusRnc = getStatusRncValue(rnc);
+                                return `
                                 <tr class="rnc-row" data-rnc-id="${rnc.id}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
                                     <td>${rnc.cliente}</td>
@@ -2286,9 +2363,10 @@
                                     <td>${rnc.setor}</td>
                                     <td><span class="badge ${rnc.prioridade === 'Alta' ? 'red' : 'orange'}">${rnc.prioridade}</span></td>
                                     <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
-                                    <td><span class="badge ${rnc.status === 'ON_TIME' ? 'green' : 'red'}">${rnc.status === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
+                                    <td><span class="badge ${statusRnc === 'ON_TIME' ? 'green' : 'red'}">${statusRnc === 'ON_TIME' ? 'No Prazo' : 'Em Risco'}</span></td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -2536,8 +2614,9 @@
                                 const statusConclusao = getStatusConclusao8D(rnc);
                                 const statusEtapas = getStatusEtapas8D(rnc);
                                 const responsavel = getResponsavelRNC(rnc);
+                                const statusRnc = getStatusRncValue(rnc);
                                 return `
-                                <tr class="controle-row" data-status="${rnc.status}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
+                                <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${escapeHtml(responsavel)}</td>
@@ -2560,8 +2639,8 @@
 
         function renderRelatorios() {
             const total = state.rncs.length;
-            const noPrazo = state.rncs.filter(r => r.status === 'ON_TIME').length;
-            const emRisco = state.rncs.filter(r => r.status === 'AT_RISK').length;
+            const noPrazo = state.rncs.filter(r => getStatusRncValue(r) === 'ON_TIME').length;
+            const emRisco = state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length;
             const taxaNoPrazo = total > 0 ? ((noPrazo / total) * 100).toFixed(1) : '0.0';
 
             return `
@@ -2593,7 +2672,7 @@
                             ${Object.entries(state.rncs.reduce((acc, r) => {
                                 acc[r.setor] = acc[r.setor] || { total: 0, risk: 0 };
                                 acc[r.setor].total += 1;
-                                if (r.status === 'AT_RISK') acc[r.setor].risk += 1;
+                                if (getStatusRncValue(r) === 'AT_RISK') acc[r.setor].risk += 1;
                                 return acc;
                             }, {})).map(([setor, dados]) => `
                                 <tr>
@@ -2642,7 +2721,7 @@
                             
                             <div class="modal-tabs">
                                 ${phases.map(phase => `
-                                    <button class="modal-tab ${state.activeTab === phase.id ? 'active' : ''}" data-tab="${phase.id}" ${canAcessarEtapa(rnc, phase.id) ? '' : 'disabled'}>
+                                    <button class="modal-tab rnc-phase-tab ${state.activeTab === phase.id ? 'active' : ''}" data-tab="${phase.id}" ${canAcessarEtapa(rnc, phase.id) ? '' : 'disabled'}>
                                         ${phase.name}
                                     </button>
                                 `).join('')}
@@ -4076,6 +4155,22 @@
                     render();
                 };
             });
+
+            const abrirPerfilModal = document.getElementById('abrirPerfilModal');
+            if (abrirPerfilModal) {
+                const abrirModalPerfil = () => {
+                    state.perfilModalAberto = true;
+                    state.perfilAbaAtiva = 'perfil';
+                    render();
+                };
+                abrirPerfilModal.onclick = abrirModalPerfil;
+                abrirPerfilModal.onkeydown = (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        abrirModalPerfil();
+                    }
+                };
+            }
             
             document.querySelectorAll('.btn-view').forEach(btn => {
                 btn.onclick = () => {
@@ -4337,6 +4432,69 @@
                     render();
                 };
             }
+
+            const perfilModal = document.getElementById('perfilModal');
+            const fecharPerfilModal = document.getElementById('fecharPerfilModal');
+            if (fecharPerfilModal) {
+                fecharPerfilModal.onclick = () => {
+                    state.perfilModalAberto = false;
+                    render();
+                };
+            }
+            if (perfilModal) {
+                perfilModal.onclick = (e) => {
+                    if (e.target === perfilModal) {
+                        state.perfilModalAberto = false;
+                        render();
+                    }
+                };
+            }
+            document.querySelectorAll('.profile-modal-tab[data-perfil-tab]').forEach(tab => {
+                tab.onclick = () => {
+                    state.perfilAbaAtiva = tab.dataset.perfilTab;
+                    render();
+                };
+            });
+            const segurancaSenhaForm = document.getElementById('segurancaSenhaForm');
+            if (segurancaSenhaForm) {
+                segurancaSenhaForm.onsubmit = async (event) => {
+                    event.preventDefault();
+                    const formData = new FormData(segurancaSenhaForm);
+                    const senhaAtual = String(formData.get('senhaAtual') || '');
+                    const novaSenha = String(formData.get('novaSenha') || '');
+                    const confirmarNovaSenha = String(formData.get('confirmarNovaSenha') || '');
+                    const msg = document.getElementById('segurancaSenhaMsg');
+                    if (!msg) return;
+                    if (!senhaAtual.trim()) {
+                        msg.textContent = 'Informe a senha atual.';
+                        msg.style.color = '#dc2626';
+                        return;
+                    }
+                    if (novaSenha.length < 8) {
+                        msg.textContent = 'A nova senha deve ter no mínimo 8 caracteres.';
+                        msg.style.color = '#dc2626';
+                        return;
+                    }
+                    if (!validatePasswordComplexity(novaSenha)) {
+                        msg.textContent = 'A nova senha deve conter letra maiúscula, minúscula, número e caractere especial.';
+                        msg.style.color = '#dc2626';
+                        return;
+                    }
+                    if (novaSenha !== confirmarNovaSenha) {
+                        msg.textContent = 'Confirmação de senha não confere.';
+                        msg.style.color = '#dc2626';
+                        return;
+                    }
+                    if (senhaAtual === novaSenha) {
+                        msg.textContent = 'A nova senha deve ser diferente da senha atual.';
+                        msg.style.color = '#dc2626';
+                        return;
+                    }
+                    msg.textContent = 'Senha validada. Para concluir a alteração, integre com seu provedor de autenticação.';
+                    msg.style.color = '#059669';
+                    segurancaSenhaForm.reset();
+                };
+            }
             
             const modal = document.getElementById('rncModal');
             if (modal) {
@@ -4348,7 +4506,7 @@
                 };
             }
             
-            document.querySelectorAll('.modal-tab:not(.d4-subtab)').forEach(tab => {
+            document.querySelectorAll('.rnc-phase-tab[data-tab]:not(.d4-subtab)').forEach(tab => {
                 tab.onclick = () => {
                     if (!tab.dataset.tab) return;
                     if (!state.selectedRNC || !canAcessarEtapa(state.selectedRNC, tab.dataset.tab)) {
@@ -4391,8 +4549,9 @@
                     rows.forEach(row => {
                         const rncId = parseInt(row.dataset.rncId);
                         const rnc = state.rncs.find(r => r.id === rncId);
+                        const statusRnc = rnc ? getStatusRncValue(rnc) : 'ON_TIME';
                         
-                        if (filter === 'all' || rnc.status === filter) {
+                        if (filter === 'all' || statusRnc === filter) {
                             row.style.display = '';
                         } else {
                             row.style.display = 'none';
