@@ -2073,11 +2073,6 @@
                     <div class="sidebar-header">
                         <h2>MAGIUS • 8D</h2>
                     </div>
-                    <div class="user-info">
-                        <div class="user-avatar">${state.currentUser.initials}</div>
-                        <p style="font-weight: 700;">${state.currentUser.name}</p>
-                        <p style="font-size: 0.875rem; opacity: 0.8;">${state.currentUser.role}</p>
-                    </div>
                     <div class="nav-menu">
                         <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
                             <span>Dashboard</span>
@@ -2256,13 +2251,13 @@
             return `
                 <div class="dashboard-filter-bar">
                     <div class="form-group" style="margin-bottom:0;">
-                        <label>📅 Mês</label>
+                        <label>Mês</label>
                         <select id="dashboardMonthFilter">
                             ${meses.map((mes, idx) => `<option value="${idx}" ${Number(state.dashboardFilterMonth) === idx ? 'selected' : ''}>${mes}</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
-                        <label>📆 Ano</label>
+                        <label>Ano</label>
                         <select id="dashboardYearFilter">
                             ${anosDisponiveis.map(ano => `<option value="${ano}" ${Number(state.dashboardFilterYear) === ano ? 'selected' : ''}>${ano}</option>`).join('')}
                         </select>
