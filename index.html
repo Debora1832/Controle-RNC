@@ -4409,6 +4409,9 @@
             const dataGeracao = new Date().toLocaleString('pt-BR');
             const plantaRnc = equipeD1[0]?.pessoa?.planta || '-';
             const responsavelRnc = getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.d1?.lider || '-';
+            const nomeArquivoPdf = `Relatorio_8D_${rnc.numero || 'RNC'}`.replace(/[^\w\-]+/g, '_');
+            const RELATORIO_PDF_VERSAO = '1.0';
+            const RELATORIO_PDF_CLASSIFICACAO = 'Interno e Cliente';
             // Capa + 8 disciplinas (D1 a D8)
             const totalPaginas = 9;
             const NUM_PORQUES = 5;
@@ -4445,10 +4448,14 @@
                 <html lang="pt-BR">
                 <head>
                     <meta charset="UTF-8" />
-                    <title>Relatório 8D - ${escapeHtml(rnc.numero)}</title>
+                    <title>${escapeHtml(nomeArquivoPdf)}</title>
                     <style>
                         @page { size: A4 portrait; margin: 2cm; }
                         body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
+                        .pdf-toolbar { position: sticky; top: 0; z-index: 999; display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; background:#f1f5f9; padding:8px; border:1px solid #bfdbfe; border-radius:6px; }
+                        .pdf-toolbar button { border:none; border-radius:5px; padding:6px 12px; font-size:12px; cursor:pointer; }
+                        .pdf-toolbar .btn-export { background:#0b3a75; color:white; }
+                        .pdf-toolbar .btn-close { background:#e2e8f0; color:#1e293b; }
                         .pdf-page { page-break-after: always; padding-bottom: 12mm; }
                         .pdf-page:last-child { page-break-after: auto; }
                         .pdf-header-bar { background:#0b3a75; color:#fff; min-height:2.5cm; display:flex; justify-content:space-between; align-items:center; padding:0.45cm 0.6cm; border-radius:6px; }
@@ -4479,9 +4486,15 @@
                         .pdf-action-block h4 { margin:0 0 6px; font-size:13px; }
                         .pdf-evidence-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:6px; }
                         .pdf-footer { margin-top:10px; padding-top:6px; border-top:1px solid #bfdbfe; font-size:10px; color:#64748b; display:flex; justify-content:space-between; }
+                        .pdf-doc-controls { margin-top:8px; padding:8px 10px; border:1px solid #bfdbfe; border-radius:6px; background:#f8fbff; color:#334155; }
+                        @media print { .pdf-toolbar { display:none; } }
                     </style>
                 </head>
                 <body>
+                    <div class="pdf-toolbar">
+                        <button class="btn-export" onclick="exportarPdfRelatorio()">Exportar PDF</button>
+                        <button class="btn-close" onclick="window.close()">Fechar</button>
+                    </div>
                     <section class="pdf-page">
                         ${renderPdfHeader()}
                         <div class="pdf-grid">
@@ -4493,6 +4506,9 @@
                             <div><strong>Responsável pela RNC:</strong> ${escapeHtml(responsavelRnc)}</div>
                         </div>
                         <div class="pdf-muted">Data de geração: ${dataGeracao}</div>
+                        <div class="pdf-doc-controls">
+                            <strong>Controle do Documento:</strong> Relatório oficial 8D para auditoria • Versão ${RELATORIO_PDF_VERSAO} • Classificação: ${RELATORIO_PDF_CLASSIFICACAO}.
+                        </div>
                         ${renderPdfFooter(1)}
                     </section>
 
@@ -4587,6 +4603,12 @@
                         <div>${escapeHtml(rnc.d8?.mensagemFinal || '-')}</div>
                         ${renderPdfFooter(9)}
                     </section>
+                    <script>
+                        function exportarPdfRelatorio() {
+                            window.focus();
+                            window.print();
+                        }
+                    <\/script>
                 </body>
                 </html>
             `;
@@ -4617,9 +4639,6 @@
                     cleanupUrl();
                 }
             }, WINDOW_CLOSE_POLL_INTERVAL_MS);
-            win.onload = () => {
-                win.print();
-            };
         }
 
         async function salvarFase(phaseId) {
