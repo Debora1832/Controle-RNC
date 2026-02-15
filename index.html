@@ -1080,6 +1080,32 @@
             currentUser: null,
             perfilModalAberto: false,
             perfilAbaAtiva: 'perfil',
+            exportModalAberto: false,
+            exportAnalisesSelecionadas: {
+                resumoGeral: true,
+                volumePecasImpactadas: true,
+                statusPrioridade: true,
+                tempoPorFase: true,
+                leadTimeTotal: true,
+                tempoMedioPorFase: true,
+                tempoAtrasoPorFase: true,
+                numeroReprazosPorRnc: true,
+                primeiroPrazoUltimoPrazo: true,
+                diasAdicionadosReprazo: true,
+                rncsComReprazo: true,
+                qtdAcoesCorretivas: true,
+                qtdAcoesPreventivas: true,
+                tempoMedioImplementacaoAcoes: true,
+                acoesNoPrazoForaPrazo: true,
+                quantidadeTotalPecas: true,
+                quantidadeInspecionada: true,
+                quantidadeNaoConforme: true,
+                percentualNaoConforme: true,
+                taxaRncsNoPrazo: true,
+                taxaRncsEmRisco: true,
+                taxaReprazos: true,
+                rncsEncerradasPeriodo: true
+            },
             dashboardFilterMonth: new Date().getMonth(),
             dashboardFilterYear: new Date().getFullYear(),
             dashboardSearch: '',
@@ -1628,6 +1654,238 @@
             return series;
         }
 
+        function parseISODate(dateValue) {
+            const value = String(dateValue || '');
+            const dateOnly = /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : '';
+            if (!dateOnly) return null;
+            const parsed = new Date(`${dateOnly}T00:00:00`);
+            if (Number.isNaN(parsed.getTime())) return null;
+            return parsed;
+        }
+
+        function diffDays(startDateValue, endDateValue) {
+            const start = parseISODate(startDateValue);
+            const end = parseISODate(endDateValue);
+            if (!start || !end) return '';
+            const msPerDay = 24 * 60 * 60 * 1000;
+            return Math.max(0, Math.floor((end.getTime() - start.getTime()) / msPerDay));
+        }
+
+        function getRNCsPeriodoAnalitico() {
+            return getDashboardCompetenciaRncs();
+        }
+
+        function getTotalReprazosRNC(rnc) {
+            const etapas = ['d3', 'd4', 'd5', 'd6', 'd7', 'd8'];
+            return etapas.reduce((acc, etapa) => {
+                const prazoEtapa = rnc.prazos?.[etapa];
+                if (!prazoEtapa) return acc;
+                return acc + (prazoEtapa.reprazo1 ? 1 : 0) + (prazoEtapa.reprazo2 ? 1 : 0);
+            }, 0);
+        }
+
+        function getPrimeiroEUltimoPrazoRNC(rnc) {
+            const etapas = ['d3', 'd4', 'd5', 'd6', 'd7', 'd8'];
+            const datas = [];
+            etapas.forEach(etapa => {
+                const prazo = rnc.prazos?.[etapa];
+                if (!prazo) return;
+                [prazo.original, prazo.reprazo1, prazo.reprazo2].forEach(data => {
+                    const parsed = parseISODate(data);
+                    if (parsed) datas.push(parsed);
+                });
+            });
+            if (!datas.length) return { primeiroPrazo: '', ultimoPrazo: '' };
+            datas.sort((a, b) => a.getTime() - b.getTime());
+            const formatISO = d => d.toISOString().slice(0, 10);
+            return { primeiroPrazo: formatISO(datas[0]), ultimoPrazo: formatISO(datas[datas.length - 1]) };
+        }
+
+        function xmlEscape(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        function buildExcelWorkbookXML(sheets) {
+            const header = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#DCE6F1" ss:Pattern="Solid"/></Style>
+ </Styles>`;
+            const usedNames = new Set();
+            const getUniqueSheetName = (baseName) => {
+                const normalized = String(baseName || 'Aba').slice(0, 31);
+                if (!usedNames.has(normalized)) {
+                    usedNames.add(normalized);
+                    return normalized;
+                }
+                let idx = 2;
+                while (idx < 1000) {
+                    const suffix = ` (${idx})`;
+                    const candidate = `${normalized.slice(0, 31 - suffix.length)}${suffix}`;
+                    if (!usedNames.has(candidate)) {
+                        usedNames.add(candidate);
+                        return candidate;
+                    }
+                    idx += 1;
+                }
+                return normalized;
+            };
+            const worksheets = sheets.map(sheet => {
+                const safeName = xmlEscape(getUniqueSheetName(sheet.name));
+                const headerRow = `<Row>${(sheet.headers || []).map(h => `<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')}</Row>`;
+                const dataRows = (sheet.rows || []).map(row => `<Row>${row.map(cell => {
+                    const isNumber = typeof cell === 'number' && Number.isFinite(cell);
+                    return `<Cell><Data ss:Type="${isNumber ? 'Number' : 'String'}">${xmlEscape(isNumber ? cell : String(cell ?? ''))}</Data></Cell>`;
+                }).join('')}</Row>`).join('');
+                return `<Worksheet ss:Name="${safeName}"><Table>${headerRow}${dataRows}</Table></Worksheet>`;
+            }).join('');
+            return `${header}${worksheets}</Workbook>`;
+        }
+
+        function exportarRelatorioAnaliticoExcel() {
+            const selecionadas = state.exportAnalisesSelecionadas || {};
+            const rncs = getRNCsPeriodoAnalitico();
+            const hojeISO = new Date().toISOString().slice(0, 10);
+            const hasAny = Object.values(selecionadas).some(Boolean);
+            if (!hasAny) {
+                alert('Selecione ao menos uma análise para exportar.');
+                return;
+            }
+
+            const sheets = [];
+
+            if (selecionadas.resumoGeral || selecionadas.volumePecasImpactadas || selecionadas.statusPrioridade) {
+                sheets.push({
+                    name: 'Resumo Geral',
+                    headers: ['Nº RNC', 'Cliente', 'Setor', 'Tipo Falha', 'Prioridade', 'Status', 'Em Risco', 'Qtde Peças'],
+                    rows: rncs.map(rnc => [
+                        rnc.numero || '-',
+                        rnc.cliente || '-',
+                        rnc.setor || '-',
+                        rnc.tipoFalha || '-',
+                        rnc.prioridade || '-',
+                        isEtapaConcluida(rnc, 'd8') ? 'Encerrada' : 'Em andamento',
+                        isRncEmRisco(rnc) ? 'Sim' : 'Não',
+                        Number(rnc.quantidade || 0)
+                    ])
+                });
+            }
+
+            if (selecionadas.tempoPorFase || selecionadas.leadTimeTotal || selecionadas.tempoMedioPorFase || selecionadas.tempoAtrasoPorFase) {
+                const phaseIds = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8'];
+                const rows = rncs.map(rnc => {
+                    const faseDias = phaseIds.map(id => diffDays(rnc.dataAbertura, getPrazoVigenteEtapa(rnc.prazos?.[id])));
+                    const leadTime = isEtapaConcluida(rnc, 'd8') ? diffDays(rnc.dataAbertura, rnc.d8?.dataConclusao) : diffDays(rnc.dataAbertura, hojeISO);
+                    const atrasoPorFase = getEtapasEmAtraso(rnc).reduce((acc, item) => acc + Number(diffDays(item.vencimento, hojeISO) || 0), 0);
+                    return [rnc.numero || '-', ...faseDias.map(v => Number(v || 0)), Number(leadTime || 0), atrasoPorFase];
+                });
+                sheets.push({
+                    name: 'Tempo por Fase',
+                    headers: ['Nº RNC', 'D1 (dias)', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'Lead Time Total', 'Tempo em atraso (dias)'],
+                    rows
+                });
+            }
+
+            if (selecionadas.numeroReprazosPorRnc || selecionadas.primeiroPrazoUltimoPrazo || selecionadas.diasAdicionadosReprazo || selecionadas.rncsComReprazo) {
+                sheets.push({
+                    name: 'Reprazos',
+                    headers: ['Nº RNC', 'Qtde Re-prazos', 'Prazo Inicial', 'Último Prazo', 'Dias Adicionados', 'RNC com Re-prazo'],
+                    rows: rncs.map(rnc => {
+                        const qtde = getTotalReprazosRNC(rnc);
+                        const { primeiroPrazo, ultimoPrazo } = getPrimeiroEUltimoPrazoRNC(rnc);
+                        const diasAdd = Number(diffDays(primeiroPrazo, ultimoPrazo) || 0);
+                        return [rnc.numero || '-', qtde, formatDateSafe(primeiroPrazo), formatDateSafe(ultimoPrazo), diasAdd, qtde > 0 ? 'Sim' : 'Não'];
+                    })
+                });
+            }
+
+            if (selecionadas.qtdAcoesCorretivas || selecionadas.qtdAcoesPreventivas || selecionadas.tempoMedioImplementacaoAcoes || selecionadas.acoesNoPrazoForaPrazo) {
+                const rows = [];
+                rncs.forEach(rnc => {
+                    const grupos = [
+                        { tipo: 'Corretiva', acoes: (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5) },
+                        { tipo: 'Preventiva', acoes: (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7) }
+                    ];
+                    grupos.forEach(grupo => {
+                        const totalAcoes = grupo.acoes.length;
+                        const concluidas = grupo.acoes.filter(a => a.status === 'CONCLUIDA').length;
+                        const foraPrazo = grupo.acoes.filter(a => a.status === 'CONCLUIDA' && diffDays(obterPrazoVigenteAcao(a), a.dataConclusao) > 0).length;
+                        const tempos = grupo.acoes
+                            .filter(a => a.status === 'CONCLUIDA')
+                            .map(a => Number(diffDays(rnc.dataAbertura, a.dataConclusao) || 0));
+                        const tempoMedio = tempos.length ? (tempos.reduce((a, b) => a + b, 0) / tempos.length).toFixed(1) : '0.0';
+                        rows.push([rnc.numero || '-', grupo.tipo, totalAcoes, concluidas, foraPrazo, tempoMedio]);
+                    });
+                });
+                sheets.push({
+                    name: 'Ações',
+                    headers: ['Nº RNC', 'Tipo Ação', 'Qtde Ações', 'Concluídas', 'Fora do Prazo', 'Tempo Médio (dias)'],
+                    rows
+                });
+            }
+
+            if (selecionadas.quantidadeTotalPecas || selecionadas.quantidadeInspecionada || selecionadas.quantidadeNaoConforme || selecionadas.percentualNaoConforme) {
+                sheets.push({
+                    name: 'Volume e Contenção',
+                    headers: ['Nº RNC', 'Qtde Peças', 'Inspecionadas', 'Não Conformes', '% NC'],
+                    rows: rncs.map(rnc => {
+                        const qtde = Number(rnc.quantidade || 0);
+                        const inspecionada = Number(rnc.d3?.quantidadeInspecionada || 0);
+                        const naoConf = Number(rnc.d3?.quantidadeNaoConforme || 0);
+                        const percNC = inspecionada > 0 ? ((naoConf / inspecionada) * 100).toFixed(1) : '0.0';
+                        return [rnc.numero || '-', qtde, inspecionada, naoConf, `${percNC}%`];
+                    })
+                });
+            }
+
+            if (selecionadas.taxaRncsNoPrazo || selecionadas.taxaRncsEmRisco || selecionadas.taxaReprazos || selecionadas.rncsEncerradasPeriodo) {
+                const total = rncs.length;
+                const noPrazo = rncs.filter(r => getStatusRncValue(r) === 'ON_TIME').length;
+                const emRisco = rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length;
+                const comReprazo = rncs.filter(r => getTotalReprazosRNC(r) > 0).length;
+                const encerradas = rncs.filter(r => isEtapaConcluida(r, 'd8')).length;
+                const leadTimes = rncs.map(r => Number((isEtapaConcluida(r, 'd8') ? diffDays(r.dataAbertura, r.d8?.dataConclusao) : diffDays(r.dataAbertura, hojeISO)) || 0));
+                const leadTimeMedio = leadTimes.length ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : '0.0';
+                sheets.push({
+                    name: 'Indicadores',
+                    headers: ['Indicador', 'Valor'],
+                    rows: [
+                        ['Taxa de RNCs no prazo', `${total ? ((noPrazo / total) * 100).toFixed(1) : '0.0'}%`],
+                        ['Taxa de RNCs em risco', `${total ? ((emRisco / total) * 100).toFixed(1) : '0.0'}%`],
+                        ['Taxa de re-prazos', `${total ? ((comReprazo / total) * 100).toFixed(1) : '0.0'}%`],
+                        ['RNCs encerradas no período', encerradas],
+                        ['Lead Time Médio (dias)', leadTimeMedio]
+                    ]
+                });
+            }
+
+            if (!sheets.length) {
+                alert('Não há análises selecionadas para exportação.');
+                return;
+            }
+
+            const xml = buildExcelWorkbookXML(sheets);
+            const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+            const a = document.createElement('a');
+            const month = String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0');
+            a.href = URL.createObjectURL(blob);
+            a.download = `relatorio-8d-analitico-${state.dashboardFilterYear}-${month}.xls`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                URL.revokeObjectURL(a.href);
+                a.remove();
+            }, 1000);
+        }
+
         function validatePasswordComplexity(password) {
             return /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
         }
@@ -2039,6 +2297,7 @@
                     </div>
                     ${renderModal()}
                     ${renderPerfilModal()}
+                    ${renderExportAnaliticoModal()}
                 `;
             }
             
@@ -2165,6 +2424,79 @@
                                     <p id="segurancaSenhaMsg" style="font-size:0.875rem; margin-bottom:0.75rem; color:#64748b;"></p>
                                     <button type="submit" class="btn btn-primary">Atualizar senha</button>
                                 </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderExportAnaliticoModal() {
+            if (!state.exportModalAberto) return '';
+            const selected = state.exportAnalisesSelecionadas || {};
+            const mk = (key, label) => `
+                <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                    <input type="checkbox" data-export-key="${key}" ${selected[key] ? 'checked' : ''}>
+                    <span>${label}</span>
+                </label>
+            `;
+            return `
+                <div class="modal-overlay active" id="exportAnaliticoModal">
+                    <div class="modal-content" style="max-width:780px;">
+                        <div class="modal-header">
+                            <div>
+                                <h2 class="modal-title">Exportações Analíticas – Relatórios 8D (Excel)</h2>
+                                <p style="color:#64748b; margin-top:0.4rem;">Selecione quais análises gerar para a competência ${String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0')}/${state.dashboardFilterYear}.</p>
+                            </div>
+                            <button class="modal-close" id="fecharExportAnaliticoModal">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="grid-2">
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análises Gerais da RNC</h4>
+                                    ${mk('resumoGeral', 'Resumo Geral das RNCs')}
+                                    ${mk('volumePecasImpactadas', 'Volume de Peças Impactadas')}
+                                    ${mk('statusPrioridade', 'Status e Prioridade')}
+                                </div>
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análise de Tempo</h4>
+                                    ${mk('tempoPorFase', 'Tempo por Fase (D1 a D8)')}
+                                    ${mk('leadTimeTotal', 'Lead Time Total (D1 → D8)')}
+                                    ${mk('tempoMedioPorFase', 'Tempo médio por fase')}
+                                    ${mk('tempoAtrasoPorFase', 'Tempo em atraso por fase')}
+                                </div>
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Prazo e Re-prazo</h4>
+                                    ${mk('numeroReprazosPorRnc', 'Número de Re-prazos por RNC')}
+                                    ${mk('primeiroPrazoUltimoPrazo', 'Data do primeiro prazo x último prazo')}
+                                    ${mk('diasAdicionadosReprazo', 'Dias adicionados por re-prazo')}
+                                    ${mk('rncsComReprazo', 'RNCs com re-prazo (Sim/Não)')}
+                                </div>
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análise de Ações</h4>
+                                    ${mk('qtdAcoesCorretivas', 'Quantidade de ações corretivas por RNC')}
+                                    ${mk('qtdAcoesPreventivas', 'Quantidade de ações preventivas por RNC')}
+                                    ${mk('tempoMedioImplementacaoAcoes', 'Tempo médio de implementação das ações')}
+                                    ${mk('acoesNoPrazoForaPrazo', 'Ações concluídas no prazo x fora do prazo')}
+                                </div>
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Contenção e Volume</h4>
+                                    ${mk('quantidadeTotalPecas', 'Quantidade total de peças impactadas')}
+                                    ${mk('quantidadeInspecionada', 'Quantidade inspecionada')}
+                                    ${mk('quantidadeNaoConforme', 'Quantidade não conforme')}
+                                    ${mk('percentualNaoConforme', '% de peças não conformes')}
+                                </div>
+                                <div class="card" style="margin-bottom:0;">
+                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Performance do Sistema</h4>
+                                    ${mk('taxaRncsNoPrazo', 'Taxa de RNCs no prazo')}
+                                    ${mk('taxaRncsEmRisco', 'Taxa de RNCs em risco')}
+                                    ${mk('taxaReprazos', 'Taxa de re-prazos')}
+                                    ${mk('rncsEncerradasPeriodo', 'RNCs encerradas no período')}
+                                </div>
+                            </div>
+                            <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem;">
+                                <button type="button" class="btn btn-secondary" id="cancelarExportAnalitico">Cancelar</button>
+                                <button type="button" class="btn btn-primary" id="confirmarExportAnalitico">Gerar Excel Analítico</button>
                             </div>
                         </div>
                     </div>
@@ -2760,6 +3092,9 @@
                     </div>
                 </div>
                 <div class="card">
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem;">
+                        <button type="button" class="btn btn-primary" id="abrirExportAnaliticoModal">Exportar Análises (Excel)</button>
+                    </div>
                     <h3 class="section-title"><span class="section-title-icon">${renderIcon('analytics')}</span> Consolidado por Setor</h3>
                     <table>
                         <thead>
@@ -4629,7 +4964,53 @@
                     segurancaSenhaForm.reset();
                 };
             }
-            
+
+            const abrirExportAnaliticoModal = document.getElementById('abrirExportAnaliticoModal');
+            if (abrirExportAnaliticoModal) {
+                abrirExportAnaliticoModal.onclick = () => {
+                    state.exportModalAberto = true;
+                    render();
+                };
+            }
+            const exportAnaliticoModal = document.getElementById('exportAnaliticoModal');
+            const fecharExportAnaliticoModal = document.getElementById('fecharExportAnaliticoModal');
+            const cancelarExportAnalitico = document.getElementById('cancelarExportAnalitico');
+            const confirmarExportAnalitico = document.getElementById('confirmarExportAnalitico');
+            if (fecharExportAnaliticoModal) {
+                fecharExportAnaliticoModal.onclick = () => {
+                    state.exportModalAberto = false;
+                    render();
+                };
+            }
+            if (cancelarExportAnalitico) {
+                cancelarExportAnalitico.onclick = () => {
+                    state.exportModalAberto = false;
+                    render();
+                };
+            }
+            if (exportAnaliticoModal) {
+                exportAnaliticoModal.onclick = (event) => {
+                    if (event.target === exportAnaliticoModal) {
+                        state.exportModalAberto = false;
+                        render();
+                    }
+                };
+            }
+            document.querySelectorAll('[data-export-key]').forEach(input => {
+                input.onchange = () => {
+                    const key = input.getAttribute('data-export-key');
+                    if (!key) return;
+                    state.exportAnalisesSelecionadas[key] = input.checked;
+                };
+            });
+            if (confirmarExportAnalitico) {
+                confirmarExportAnalitico.onclick = () => {
+                    exportarRelatorioAnaliticoExcel();
+                    state.exportModalAberto = false;
+                    render();
+                };
+            }
+             
             const modal = document.getElementById('rncModal');
             if (modal) {
                 modal.onclick = (e) => {
