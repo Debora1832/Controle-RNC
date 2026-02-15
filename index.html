@@ -2405,7 +2405,7 @@
 
         function renderPhaseContent(rnc, phase) {
             const prazo = rnc.prazos[phase.id];
-            const canReprazo = ['d3', 'd4', 'd5', 'd6', 'd7', 'd8'].includes(phase.id);
+            const canReprazo = ['d3', 'd4', 'd7', 'd8'].includes(phase.id);
             
             let content = `
                 <div class="d8-section ${rnc.faseAtual === phase.id ? 'active' : ''}">
@@ -2595,7 +2595,9 @@
                                     <th>Descrição da Ação</th>
                                     <th>Responsável</th>
                                     <th>Prazo Original</th>
+                                    <th>Último Re-prazo</th>
                                     <th>Status de Prazo</th>
+                                    <th>Status da Ação</th>
                                     <th>Re-prazo</th>
                                     <th>Ações</th>
                                 </tr>
@@ -2603,19 +2605,21 @@
                             <tbody>
                                 ${acoesD5.length === 0 ? `
                                     <tr>
-                                        <td colspan="6" style="text-align:center; color:#64748b;">Nenhuma ação cadastrada.</td>
+                                        <td colspan="8" style="text-align:center; color:#64748b;">Nenhuma ação cadastrada.</td>
                                     </tr>
                                 ` : acoesD5.map(acao => {
                                     const acaoNormalizada = normalizeAcaoD5(acao);
-                                    const prazoVigente = obterPrazoVigenteAcao(acao);
-                                    const indicador = obterIndicadorPrazoAcao(acao);
+                                    const indicador = obterIndicadorPrazoAcao(acaoNormalizada);
                                     const responsavelAcao = getPessoaById(acaoNormalizada.responsavelId)?.nome || acaoNormalizada.responsavel || '-';
+                                    const ultimoReprazoData = acaoNormalizada.reprazos?.length ? acaoNormalizada.reprazos[acaoNormalizada.reprazos.length - 1]?.data : '';
                                     return `
                                         <tr>
                                             <td>${escapeHtml(acaoNormalizada.descricao || '')}</td>
                                             <td>${escapeHtml(responsavelAcao)}</td>
                                             <td>${formatDateSafe(acaoNormalizada.prazoPrincipal)}</td>
-                                            <td><span class="badge ${indicador.className === 'red' ? 'red' : (indicador.className === 'orange' ? 'orange' : 'green')}">${indicador.className === 'red' ? 'Em atraso' : 'Dentro do prazo'}</span></td>
+                                            <td>${ultimoReprazoData ? formatDateSafe(ultimoReprazoData) : '—'}</td>
+                                            <td><span class="badge ${indicador.className === 'red' ? 'red' : (indicador.className === 'orange' ? 'orange' : 'green')}">${indicador.className === 'red' ? 'Em atraso' : (indicador.className === 'orange' ? 'Próximo ao vencimento' : 'Dentro do prazo')}</span></td>
+                                            <td><span class="badge ${acaoNormalizada.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acaoNormalizada.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span></td>
                                             <td>${acaoNormalizada.reprazos?.length ? `Sim / Nº ${acaoNormalizada.reprazos.length}` : 'Não'}</td>
                                             <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="abrirCadastroAcaoD5('${acao.id}')">Editar</button></td>
                                         </tr>
@@ -2635,12 +2639,12 @@
                         ` : `
                             <div style="display:flex; flex-direction:column; gap:0.75rem;">
                                 ${acoesD6.map(acao => {
-                                    const indicador = obterIndicadorPrazoAcao(acao);
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
                                     return `
                                         <button type="button" class="btn btn-secondary" style="text-align:left; width:100%;" onclick="abrirImplementacaoAcaoD6('${acao.id}')">
                                             <strong>${escapeHtml(acao.descricao || 'Ação sem descrição')}</strong><br>
-                                            <span style="font-size:0.8125rem; color:#475569;">Prazo vigente: ${formatDateSafe(prazoVigente)} • ${indicador.label} • ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Aberta'}</span>
+                                            <span style="font-size:0.8125rem; color:#475569;">Responsável: ${escapeHtml(responsavelAcao)} • Prazo vigente: ${formatDateSafe(prazoVigente)} • Status: ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span>
                                         </button>
                                     `;
                                 }).join('')}
