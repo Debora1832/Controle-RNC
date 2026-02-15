@@ -685,6 +685,51 @@
             gap: 1.5rem;
         }
 
+        .export-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.875rem;
+        }
+
+        .export-box {
+            border: 1px solid #dbe2ea;
+            border-radius: 10px;
+            padding: 0.875rem 1rem;
+            background: #fff;
+            min-height: 180px;
+        }
+
+        .export-box.compact {
+            min-height: auto;
+        }
+
+        .export-box h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .export-box hr {
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+            margin: 0 0 0.625rem;
+        }
+
+        .export-checkbox-item,
+        .export-radio-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.45rem;
+            font-size: 0.875rem;
+        }
+
+        .export-section-divider {
+            border: 0;
+            border-top: 1px solid #dbe2ea;
+            margin: 1rem 0;
+        }
+
         .d2-image-layout {
             --d2-image-height: 220px;
             display: grid;
@@ -1106,6 +1151,7 @@
                 taxaReprazos: true,
                 rncsEncerradasPeriodo: true
             },
+            exportDiretoTipo: 'RNC_GERAL',
             dashboardFilterMonth: new Date().getMonth(),
             dashboardFilterYear: new Date().getFullYear(),
             dashboardSearch: '',
@@ -1701,6 +1747,11 @@
             return { primeiroPrazo: formatISO(datas[0]), ultimoPrazo: formatISO(datas[datas.length - 1]) };
         }
 
+        function getCompetenciaLabelAtual() {
+            const month = String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0');
+            return `${month}/${state.dashboardFilterYear}`;
+        }
+
         function xmlEscape(value) {
             return String(value ?? '')
                 .replace(/&/g, '&amp;')
@@ -1748,6 +1799,20 @@
                 return `<Worksheet ss:Name="${safeName}"><Table>${headerRow}${dataRows}</Table></Worksheet>`;
             }).join('');
             return `${header}${worksheets}</Workbook>`;
+        }
+
+        function downloadExcelFromSheets(sheets, fileName) {
+            const xml = buildExcelWorkbookXML(sheets);
+            const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                URL.revokeObjectURL(a.href);
+                a.remove();
+            }, 1000);
         }
 
         function exportarRelatorioAnaliticoExcel() {
@@ -1872,18 +1937,86 @@
                 return;
             }
 
-            const xml = buildExcelWorkbookXML(sheets);
-            const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-            const a = document.createElement('a');
             const month = String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0');
-            a.href = URL.createObjectURL(blob);
-            a.download = `relatorio-8d-analitico-${state.dashboardFilterYear}-${month}.xls`;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                URL.revokeObjectURL(a.href);
-                a.remove();
-            }, 1000);
+            downloadExcelFromSheets(sheets, `relatorio-8d-analitico-${state.dashboardFilterYear}-${month}.xls`);
+        }
+
+        function exportarRelatorioDiretoExcel() {
+            const rncs = getRNCsPeriodoAnalitico();
+            const tipo = state.exportDiretoTipo || 'RNC_GERAL';
+            let sheets = [];
+            let nome = '';
+
+            if (tipo === 'ACOES') {
+                const rows = [];
+                rncs.forEach(rnc => {
+                    (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).forEach(acao => {
+                        rows.push([
+                            rnc.numero || '-',
+                            'Corretiva',
+                            getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-',
+                            formatDateSafe(obterPrazoVigenteAcao(acao)),
+                            acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto',
+                            (acao.reprazos?.length || 0) > 0 ? 'Sim' : 'Não'
+                        ]);
+                    });
+                    (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7).forEach(acao => {
+                        rows.push([
+                            rnc.numero || '-',
+                            'Preventiva',
+                            getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-',
+                            formatDateSafe(obterPrazoVigenteAcao(acao)),
+                            acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto',
+                            (acao.reprazos?.length || 0) > 0 ? 'Sim' : 'Não'
+                        ]);
+                    });
+                });
+                sheets = [{
+                    name: 'Ações',
+                    headers: ['Nº RNC', 'Tipo da Ação', 'Responsável', 'Prazo', 'Status', 'Re-prazo'],
+                    rows
+                }];
+                nome = 'acoes';
+            } else if (tipo === 'INDICADORES') {
+                const total = rncs.length;
+                const noPrazo = rncs.filter(r => getStatusRncValue(r) === 'ON_TIME').length;
+                const emRisco = rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length;
+                const leadTimes = rncs.map(r => Number((isEtapaConcluida(r, 'd8') ? diffDays(r.dataAbertura, r.d8?.dataConclusao) : diffDays(r.dataAbertura, new Date().toISOString().slice(0, 10))) || 0));
+                const leadMedio = leadTimes.length ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : '0.0';
+                const taxaReprazo = total > 0 ? ((rncs.filter(r => getTotalReprazosRNC(r) > 0).length / total) * 100).toFixed(1) : '0.0';
+                sheets = [{
+                    name: 'Indicadores Mensais',
+                    headers: ['Indicador', 'Valor'],
+                    rows: [
+                        ['Total de RNCs', total],
+                        ['No prazo', noPrazo],
+                        ['Em risco', emRisco],
+                        ['Lead time médio (dias)', leadMedio],
+                        ['Taxa de re-prazo', `${taxaReprazo}%`]
+                    ]
+                }];
+                nome = 'indicadores';
+            } else {
+                sheets = [{
+                    name: 'RNCs Visão Geral',
+                    headers: ['Nº RNC', 'Cliente', 'Setor', 'Tipo de falha', 'Status', 'Fase atual', 'Em risco', 'Data abertura', 'Data fechamento'],
+                    rows: rncs.map(rnc => [
+                        rnc.numero || '-',
+                        rnc.cliente || '-',
+                        rnc.setor || '-',
+                        rnc.tipoFalha || '-',
+                        isEtapaConcluida(rnc, 'd8') ? 'Encerrada' : 'Em andamento',
+                        phases.find(p => p.id === rnc.faseAtual)?.name || '-',
+                        isRncEmRisco(rnc) ? 'Sim' : 'Não',
+                        formatDateSafe(rnc.dataAbertura),
+                        extractAndFormatDate(rnc.d8?.dataConclusao)
+                    ])
+                }];
+                nome = 'rncs-visao-geral';
+            }
+
+            const month = String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0');
+            downloadExcelFromSheets(sheets, `relatorio-8d-direto-${nome}-${state.dashboardFilterYear}-${month}.xls`);
         }
 
         function validatePasswordComplexity(password) {
@@ -2434,69 +2567,94 @@
         function renderExportAnaliticoModal() {
             if (!state.exportModalAberto) return '';
             const selected = state.exportAnalisesSelecionadas || {};
+            const hasAnyAnalysisSelected = Object.values(selected).some(Boolean);
             const mk = (key, label) => `
-                <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                <label class="export-checkbox-item">
                     <input type="checkbox" data-export-key="${key}" ${selected[key] ? 'checked' : ''}>
                     <span>${label}</span>
                 </label>
             `;
             return `
                 <div class="modal-overlay active" id="exportAnaliticoModal">
-                    <div class="modal-content" style="max-width:780px;">
+                    <div class="modal-content" style="max-width:900px;">
                         <div class="modal-header">
                             <div>
                                 <h2 class="modal-title">Exportações Analíticas – Relatórios 8D (Excel)</h2>
-                                <p style="color:#64748b; margin-top:0.4rem;">Selecione quais análises gerar para a competência ${String(Number(state.dashboardFilterMonth) + 1).padStart(2, '0')}/${state.dashboardFilterYear}.</p>
+                                <p style="color:#64748b; margin-top:0.4rem;">Selecione quais análises gerar para a competência ${getCompetenciaLabelAtual()}.</p>
                             </div>
                             <button class="modal-close" id="fecharExportAnaliticoModal">×</button>
                         </div>
                         <div class="modal-body">
-                            <div class="grid-2">
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análises Gerais da RNC</h4>
+                            <div class="export-modal-grid">
+                                <div class="export-box">
+                                    <h4>Análises Gerais da RNC</h4>
+                                    <hr>
                                     ${mk('resumoGeral', 'Resumo Geral das RNCs')}
                                     ${mk('volumePecasImpactadas', 'Volume de Peças Impactadas')}
                                     ${mk('statusPrioridade', 'Status e Prioridade')}
                                 </div>
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análise de Tempo</h4>
+                                <div class="export-box">
+                                    <h4>Análise de Tempo</h4>
+                                    <hr>
                                     ${mk('tempoPorFase', 'Tempo por Fase (D1 a D8)')}
                                     ${mk('leadTimeTotal', 'Lead Time Total (D1 → D8)')}
                                     ${mk('tempoMedioPorFase', 'Tempo médio por fase')}
                                     ${mk('tempoAtrasoPorFase', 'Tempo em atraso por fase')}
                                 </div>
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Prazo e Re-prazo</h4>
+                                <div class="export-box">
+                                    <h4>Prazo e Re-prazo</h4>
+                                    <hr>
                                     ${mk('numeroReprazosPorRnc', 'Número de Re-prazos por RNC')}
                                     ${mk('primeiroPrazoUltimoPrazo', 'Data do primeiro prazo x último prazo')}
                                     ${mk('diasAdicionadosReprazo', 'Dias adicionados por re-prazo')}
                                     ${mk('rncsComReprazo', 'RNCs com re-prazo (Sim/Não)')}
                                 </div>
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Análise de Ações</h4>
+                                <div class="export-box">
+                                    <h4>Análise de Ações</h4>
+                                    <hr>
                                     ${mk('qtdAcoesCorretivas', 'Quantidade de ações corretivas por RNC')}
                                     ${mk('qtdAcoesPreventivas', 'Quantidade de ações preventivas por RNC')}
                                     ${mk('tempoMedioImplementacaoAcoes', 'Tempo médio de implementação das ações')}
                                     ${mk('acoesNoPrazoForaPrazo', 'Ações concluídas no prazo x fora do prazo')}
                                 </div>
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Contenção e Volume</h4>
+                                <div class="export-box">
+                                    <h4>Contenção e Volume</h4>
+                                    <hr>
                                     ${mk('quantidadeTotalPecas', 'Quantidade total de peças impactadas')}
                                     ${mk('quantidadeInspecionada', 'Quantidade inspecionada')}
                                     ${mk('quantidadeNaoConforme', 'Quantidade não conforme')}
                                     ${mk('percentualNaoConforme', '% de peças não conformes')}
                                 </div>
-                                <div class="card" style="margin-bottom:0;">
-                                    <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Performance do Sistema</h4>
+                                <div class="export-box">
+                                    <h4>Performance do Sistema</h4>
+                                    <hr>
                                     ${mk('taxaRncsNoPrazo', 'Taxa de RNCs no prazo')}
                                     ${mk('taxaRncsEmRisco', 'Taxa de RNCs em risco')}
                                     ${mk('taxaReprazos', 'Taxa de re-prazos')}
                                     ${mk('rncsEncerradasPeriodo', 'RNCs encerradas no período')}
                                 </div>
                             </div>
+                            <hr class="export-section-divider">
+                            <div class="export-box compact">
+                                <h4>Exportação Direta (Excel)</h4>
+                                <p style="color:#64748b; margin-bottom:0.6rem;">Para uso rápido e operacional.</p>
+                                <label class="export-radio-item">
+                                    <input type="radio" name="exportDiretoTipo" value="RNC_GERAL" ${state.exportDiretoTipo === 'RNC_GERAL' ? 'checked' : ''}>
+                                    <span>RNCs – Visão Geral</span>
+                                </label>
+                                <label class="export-radio-item">
+                                    <input type="radio" name="exportDiretoTipo" value="ACOES" ${state.exportDiretoTipo === 'ACOES' ? 'checked' : ''}>
+                                    <span>Ações</span>
+                                </label>
+                                <label class="export-radio-item" style="margin-bottom:0;">
+                                    <input type="radio" name="exportDiretoTipo" value="INDICADORES" ${state.exportDiretoTipo === 'INDICADORES' ? 'checked' : ''}>
+                                    <span>Indicadores Mensais</span>
+                                </label>
+                            </div>
                             <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:1rem;">
                                 <button type="button" class="btn btn-secondary" id="cancelarExportAnalitico">Cancelar</button>
-                                <button type="button" class="btn btn-primary" id="confirmarExportAnalitico">Gerar Excel Analítico</button>
+                                <button type="button" class="btn btn-primary" id="confirmarExportAnalitico" ${hasAnyAnalysisSelected ? '' : 'disabled'}>Gerar Excel Analítico</button>
+                                <button type="button" class="btn btn-primary" id="confirmarExportDireto">Exportar Excel Simples</button>
                             </div>
                         </div>
                     </div>
@@ -4976,6 +5134,7 @@
             const fecharExportAnaliticoModal = document.getElementById('fecharExportAnaliticoModal');
             const cancelarExportAnalitico = document.getElementById('cancelarExportAnalitico');
             const confirmarExportAnalitico = document.getElementById('confirmarExportAnalitico');
+            const confirmarExportDireto = document.getElementById('confirmarExportDireto');
             if (fecharExportAnaliticoModal) {
                 fecharExportAnaliticoModal.onclick = () => {
                     state.exportModalAberto = false;
@@ -5001,11 +5160,24 @@
                     const key = input.getAttribute('data-export-key');
                     if (!key) return;
                     state.exportAnalisesSelecionadas[key] = input.checked;
+                    render();
+                };
+            });
+            document.querySelectorAll('input[name="exportDiretoTipo"]').forEach(input => {
+                input.onchange = () => {
+                    state.exportDiretoTipo = input.value || 'RNC_GERAL';
                 };
             });
             if (confirmarExportAnalitico) {
                 confirmarExportAnalitico.onclick = () => {
                     exportarRelatorioAnaliticoExcel();
+                    state.exportModalAberto = false;
+                    render();
+                };
+            }
+            if (confirmarExportDireto) {
+                confirmarExportDireto.onclick = () => {
+                    exportarRelatorioDiretoExcel();
                     state.exportModalAberto = false;
                     render();
                 };
