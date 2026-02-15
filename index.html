@@ -1389,6 +1389,30 @@
             });
         }
 
+        function getEquipeMembroKey(item) {
+            if (item?.pessoa?.id) return `id-${item.pessoa.id}`;
+            return `nome-${String(item?.pessoa?.nome || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+        }
+
+        function ensureD8Structure(rnc) {
+            if (!rnc.d8) rnc.d8 = {};
+            if (typeof rnc.d8.licaoAprendida !== 'string') rnc.d8.licaoAprendida = '';
+            if (typeof rnc.d8.mensagemFinal !== 'string') rnc.d8.mensagemFinal = rnc.d8.reconhecimento || '';
+            if (!rnc.d8.reconhecimentoIndividual || typeof rnc.d8.reconhecimentoIndividual !== 'object') rnc.d8.reconhecimentoIndividual = {};
+            if (typeof rnc.d8.concluida !== 'boolean') rnc.d8.concluida = false;
+            if (typeof rnc.d8.dataConclusao !== 'string') rnc.d8.dataConclusao = '';
+        }
+
+        function getPendenciasConclusaoD8(rnc) {
+            const pendencias = [];
+            if (!(rnc.d8?.licaoAprendida || '').trim()) pendencias.push('Preencha o campo obrigatório de lições aprendidas.');
+            const acoesCorretivas = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
+            const acoesPreventivas = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
+            if (acoesCorretivas.some(acao => acao.status !== 'CONCLUIDA')) pendencias.push('Conclua todas as ações corretivas (D5/D6).');
+            if (acoesPreventivas.some(acao => acao.status !== 'CONCLUIDA')) pendencias.push('Conclua todas as ações preventivas (D7).');
+            return pendencias;
+        }
+
         function isRNCAtiva(rnc) {
             return rnc.faseAtual !== 'd8';
         }
@@ -2405,7 +2429,7 @@
 
         function renderPhaseContent(rnc, phase) {
             const prazo = rnc.prazos[phase.id];
-            const canReprazo = ['d3', 'd4', 'd8'].includes(phase.id);
+            const canReprazo = ['d3', 'd4'].includes(phase.id);
             
             let content = `
                 <div class="d8-section ${rnc.faseAtual === phase.id ? 'active' : ''}">
@@ -2719,21 +2743,76 @@
                     </div>
                 `;
             } else if (phase.id === 'd8') {
+                ensureD8Structure(rnc);
+                const equipeD1 = montarEquipeD1(rnc);
+                const pendenciasD8 = getPendenciasConclusaoD8(rnc);
+                const d8Readonly = rnc.d8.concluida ? 'readonly disabled' : '';
+                const dataConclusaoD8 = /^\d{4}-\d{2}-\d{2}/.test(rnc.d8.dataConclusao || '') ? rnc.d8.dataConclusao.slice(0, 10) : '';
                 content += `
-                    <div class="form-group">
-                        <label>Reconhecimento da Equipe</label>
-                        <textarea rows="3" id="d8-reconhecimento">${rnc.d8.reconhecimento}</textarea>
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Lições Aprendidas</h4>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Lições Aprendidas <span style="color:#dc2626;">*</span></label>
+                            <textarea rows="4" id="d8-licao" ${d8Readonly}>${escapeHtml(rnc.d8.licaoAprendida || '')}</textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Lições Aprendidas</label>
-                        <textarea rows="4" id="d8-licao">${rnc.d8.licaoAprendida}</textarea>
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Equipe Envolvida</h4>
+                        <table>
+                            <thead>
+                                <tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr>
+                            </thead>
+                            <tbody>
+                                ${equipeD1.length === 0 ? `
+                                    <tr><td colspan="4" style="text-align:center; color:#64748b;">Equipe não disponível.</td></tr>
+                                ` : equipeD1.map(item => `
+                                    <tr>
+                                        <td>${escapeHtml(item.pessoa.nome)}</td>
+                                        <td>${escapeHtml(item.funcaoRnc)}</td>
+                                        <td>${escapeHtml(item.pessoa.setor || '-')}</td>
+                                        <td>${escapeHtml(item.pessoa.planta || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Reconhecimento Individual</h4>
+                        ${equipeD1.length === 0 ? `<div style="color:#64748b;">Sem membros para reconhecer.</div>` : equipeD1.map(item => {
+                            const key = getEquipeMembroKey(item);
+                            return `
+                                <div class="form-group">
+                                    <label>${escapeHtml(item.pessoa.nome)} (${escapeHtml(item.funcaoRnc)})</label>
+                                    <textarea rows="2" id="d8-rec-${key}" ${d8Readonly}>${escapeHtml(rnc.d8.reconhecimentoIndividual?.[key] || '')}</textarea>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    <div class="card" style="padding:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Agradecimento Final da Liderança</h4>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Mensagem Final de Agradecimento</label>
+                            <textarea rows="3" id="d8-mensagem" ${d8Readonly}>${escapeHtml(rnc.d8.mensagemFinal || '')}</textarea>
+                        </div>
+                    </div>
+                    <div style="margin-top:1rem;">
+                        ${rnc.d8.concluida ? `
+                            <div class="badge green" style="display:inline-flex;">8D encerrado em ${formatDateSafe(dataConclusaoD8)}</div>
+                            <p style="margin-top:0.5rem; color:#64748b;">Registro disponível somente para consulta.</p>
+                        ` : `
+                            ${pendenciasD8.length ? `<div class="prazo-justificativa" style="margin-bottom:0.75rem;"><strong>Pendências para concluir D8:</strong><ul style="padding-left:1.25rem; margin-top:0.5rem;">${pendenciasD8.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` : ''}
+                            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                                <button type="button" class="btn btn-secondary" onclick="salvarD8(false)">Salvar D8</button>
+                                <button type="button" class="btn btn-success" onclick="salvarD8(true)" ${pendenciasD8.length ? 'disabled' : ''}>Concluir D8 e Encerrar 8D</button>
+                            </div>
+                        `}
                     </div>
                 `;
             }
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    ${!['d1', 'd2', 'd3', 'd5', 'd6', 'd7'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
+                    ${!['d1', 'd2', 'd3', 'd5', 'd6', 'd7', 'd8'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -3283,6 +3362,48 @@
             };
         }
 
+        async function salvarD8(concluir = false) {
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            ensureD8Structure(state.rncs[rncIndex]);
+            const rnc = state.rncs[rncIndex];
+            if (rnc.d8.concluida) {
+                alert('O D8 já foi concluído e está disponível somente para consulta.');
+                return;
+            }
+
+            const licaoInput = document.getElementById('d8-licao');
+            const msgInput = document.getElementById('d8-mensagem');
+            rnc.d8.licaoAprendida = licaoInput ? licaoInput.value : rnc.d8.licaoAprendida;
+            rnc.d8.mensagemFinal = msgInput ? msgInput.value : rnc.d8.mensagemFinal;
+
+            const equipeD1 = montarEquipeD1(rnc);
+            const reconhecimentoIndividual = {};
+            equipeD1.forEach(item => {
+                const key = getEquipeMembroKey(item);
+                const campo = document.getElementById(`d8-rec-${key}`);
+                if (campo) reconhecimentoIndividual[key] = campo.value;
+            });
+            rnc.d8.reconhecimentoIndividual = reconhecimentoIndividual;
+
+            if (concluir) {
+                const pendencias = getPendenciasConclusaoD8(rnc);
+                if (pendencias.length) {
+                    alert(`Não foi possível concluir o D8:\n- ${pendencias.join('\n- ')}`);
+                    return;
+                }
+                rnc.d8.concluida = true;
+                rnc.d8.dataConclusao = new Date().toISOString();
+            }
+
+            state.selectedRNC = rnc;
+            const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+            alert(salvoNoFirebase
+                ? (concluir ? 'D8 concluído e 8D encerrado com sucesso!' : 'D8 salvo com sucesso!')
+                : (concluir ? 'D8 concluído localmente. Firebase indisponível.' : 'D8 salvo localmente. Firebase indisponível.'));
+            render();
+        }
+
         async function salvarFase(phaseId) {
             const rnc = state.selectedRNC;
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
@@ -3325,8 +3446,7 @@
             } else if (phaseId === 'd7') {
                 return;
             } else if (phaseId === 'd8') {
-                state.rncs[rncIndex].d8.reconhecimento = document.getElementById('d8-reconhecimento').value;
-                state.rncs[rncIndex].d8.licaoAprendida = document.getElementById('d8-licao').value;
+                return;
             }
             
             state.selectedRNC = state.rncs[rncIndex];
@@ -3540,7 +3660,7 @@
                         d5: { acoesCorretivas: "" },
                         d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
                         d7: { acoesPreventivas: "", listaAcoes: [] },
-                        d8: { reconhecimento: "", licaoAprendida: "" },
+                        d8: { reconhecimento: "", licaoAprendida: "", mensagemFinal: "", reconhecimentoIndividual: {}, concluida: false, dataConclusao: "" },
                         prazos: {
                             d1: { original: dataAbertura, sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
                             d2: { original: dataAbertura, sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
