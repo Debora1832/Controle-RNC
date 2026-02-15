@@ -4409,6 +4409,7 @@
             const dataGeracao = new Date().toLocaleString('pt-BR');
             const plantaRnc = equipeD1[0]?.pessoa?.planta || '-';
             const responsavelRnc = getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.d1?.lider || '-';
+            // Capa + 8 disciplinas (D1 a D8)
             const totalPaginas = 9;
             const renderPdfHeader = (tituloEtapa = '') => `
                 <div class="pdf-header-bar">
@@ -4437,7 +4438,7 @@
                     <style>
                         @page { size: A4 portrait; margin: 2cm; }
                         body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
-                        .pdf-page { page-break-after: always; padding-bottom: 12mm; break-inside: avoid; }
+                        .pdf-page { page-break-after: always; padding-bottom: 12mm; }
                         .pdf-page:last-child { page-break-after: auto; }
                         .pdf-header-bar { background:#0b3a75; color:#fff; min-height:2.5cm; display:flex; justify-content:space-between; align-items:center; padding:0.45cm 0.6cm; border-radius:6px; }
                         .pdf-logo { font-weight:700; letter-spacing:0.08em; font-size:16px; }
@@ -4451,6 +4452,7 @@
                         .pdf-table th, .pdf-table td { border:1px solid #bfdbfe; padding:6px; vertical-align: top; text-align:left; }
                         .pdf-table th { background:#e0ecff; color:#1e3a8a; font-weight:700; page-break-after: avoid; }
                         .pdf-table tbody tr:nth-child(even) { background:#f8fbff; }
+                        /* Repete o cabeçalho da tabela em novas páginas impressas */
                         thead { display: table-header-group; }
                         .pdf-muted { color:#64748b; font-style:italic; margin-top:4px; }
                         .pdf-image-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
