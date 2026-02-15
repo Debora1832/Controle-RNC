@@ -2405,7 +2405,7 @@
 
         function renderPhaseContent(rnc, phase) {
             const prazo = rnc.prazos[phase.id];
-            const canReprazo = ['d3', 'd4', 'd7', 'd8'].includes(phase.id);
+            const canReprazo = ['d3', 'd4', 'd8'].includes(phase.id);
             
             let content = `
                 <div class="d8-section ${rnc.faseAtual === phase.id ? 'active' : ''}">
@@ -2653,10 +2653,69 @@
                     </div>
                 `;
             } else if (phase.id === 'd7') {
+                const acoesD7 = (rnc.d7.listaAcoes || []).map(normalizeAcaoD7);
                 content += `
-                    <div class="form-group">
-                        <label>Ações Preventivas (Sistematização)</label>
-                        <textarea rows="5" id="d7-acoes">${rnc.d7.acoesPreventivas}</textarea>
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+                            <h4 style="font-weight:700;">Ações Preventivas Cadastradas (Controle)</h4>
+                            <button type="button" class="btn btn-primary" onclick="abrirCadastroAcaoD7()">Cadastrar Ação Preventiva</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Descrição da Ação Preventiva</th>
+                                    <th>Responsável</th>
+                                    <th>Origem da Prevenção</th>
+                                    <th>Prazo Original</th>
+                                    <th>Último Re-prazo</th>
+                                    <th>Status de Prazo</th>
+                                    <th>Status da Ação</th>
+                                    <th>Re-prazo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${acoesD7.length === 0 ? `
+                                    <tr><td colspan="9" style="text-align:center; color:#64748b;">Nenhuma ação preventiva cadastrada.</td></tr>
+                                ` : acoesD7.map(acao => {
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                                    const indicador = obterIndicadorPrazoAcao(acao);
+                                    const ultimoReprazoData = acao.reprazos?.length ? acao.reprazos[acao.reprazos.length - 1]?.data : '';
+                                    return `
+                                        <tr>
+                                            <td>${escapeHtml(acao.descricao || '')}</td>
+                                            <td>${escapeHtml(responsavelAcao)}</td>
+                                            <td>${escapeHtml(acao.origemPrevencao || '-')}</td>
+                                            <td>${formatDateSafe(acao.prazoPrincipal)}</td>
+                                            <td>${ultimoReprazoData ? formatDateSafe(ultimoReprazoData) : '—'}</td>
+                                            <td><span class="badge ${indicador.className === 'red' ? 'red' : (indicador.className === 'orange' ? 'orange' : 'green')}">${indicador.className === 'red' ? 'Em atraso' : (indicador.className === 'orange' ? 'Próximo ao vencimento' : 'Dentro do prazo')}</span></td>
+                                            <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span></td>
+                                            <td>${acao.reprazos?.length ? `Sim / Nº ${acao.reprazos.length}` : 'Não'}</td>
+                                            <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="abrirCadastroAcaoD7('${acao.id}')">Editar</button></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card" style="padding:1rem;">
+                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Implementação das Ações Preventivas</h4>
+                        ${acoesD7.length === 0 ? `
+                            <div style="color:#64748b;">Nenhuma ação preventiva para implementação.</div>
+                        ` : `
+                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                                ${acoesD7.map(acao => {
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                                    const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    return `
+                                        <button type="button" class="btn btn-secondary" style="text-align:left; width:100%;" onclick="abrirImplementacaoAcaoD7('${acao.id}')">
+                                            <strong>${escapeHtml(acao.descricao || 'Ação preventiva sem descrição')}</strong><br>
+                                            <span style="font-size:0.8125rem; color:#475569;">Responsável: ${escapeHtml(responsavelAcao)} • Prazo vigente: ${formatDateSafe(prazoVigente)} • Status: ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span>
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
                     </div>
                 `;
             } else if (phase.id === 'd8') {
@@ -2674,7 +2733,7 @@
             
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                    ${!['d1', 'd2', 'd3', 'd5', 'd6'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
+                    ${!['d1', 'd2', 'd3', 'd5', 'd6', 'd7'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
                     ${canReprazo && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
@@ -2695,6 +2754,13 @@
                 if (acao.reprazo2) reprazos.push({ numero: 2, data: acao.reprazo2, justificativa: acao.justificativaReprazo2 || '' });
                 acao.reprazos = reprazos;
             }
+            acao.evidencias = Array.isArray(acao.evidencias) ? acao.evidencias : [];
+            return acao;
+        }
+
+        function normalizeAcaoD7(acao) {
+            if (!acao) return { id: '', descricao: '', origemPrevencao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], dataConclusao: '' };
+            if (!Array.isArray(acao.reprazos)) acao.reprazos = [];
             acao.evidencias = Array.isArray(acao.evidencias) ? acao.evidencias : [];
             return acao;
         }
@@ -3019,6 +3085,204 @@
             };
         }
 
+        function abrirCadastroAcaoD7(acaoId = '') {
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            state.rncs[rncIndex].d7.listaAcoes = state.rncs[rncIndex].d7.listaAcoes || [];
+            const acoes = state.rncs[rncIndex].d7.listaAcoes;
+            const acaoExistente = acoes.find(acao => acao.id === acaoId);
+            const dadosAcao = normalizeAcaoD7(acaoExistente || {});
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1002';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 760px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title">${acaoExistente ? 'Editar Ação Preventiva' : 'Cadastrar Ação Preventiva'}</h2>
+                            <p style="color:#64748b; margin-top:0.5rem;">Etapa D7 - Ações Preventivas</p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="d7AcaoForm">
+                            <div class="form-group">
+                                <label>Descrição da Ação Preventiva</label>
+                                <textarea id="d7-acao-descricao" rows="3" required>${escapeHtml(dadosAcao.descricao || '')}</textarea>
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Origem da Prevenção</label>
+                                    <select id="d7-acao-origem" required>
+                                        <option value="">Selecione</option>
+                                        ${['Mesmo produto', 'Outro produto', 'Outro processo', 'Outra planta'].map(origem => `<option value="${origem}" ${dadosAcao.origemPrevencao === origem ? 'selected' : ''}>${origem}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Prazo Original</label>
+                                    <input type="date" id="d7-acao-prazo-principal" value="${dadosAcao.prazoPrincipal || ''}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Responsável</label>
+                                    <select id="d7-acao-responsavel" required>
+                                        <option value="">Selecione</option>
+                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:1rem;">
+                                <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+                                <button type="submit" class="btn btn-success">${acaoExistente ? 'Salvar Alterações' : 'Salvar Ação Preventiva'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            document.getElementById('d7AcaoForm').onsubmit = async (e) => {
+                e.preventDefault();
+                const payload = {
+                    id: acaoExistente?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    descricao: document.getElementById('d7-acao-descricao').value,
+                    origemPrevencao: document.getElementById('d7-acao-origem').value,
+                    prazoPrincipal: document.getElementById('d7-acao-prazo-principal').value,
+                    responsavelId: Number(document.getElementById('d7-acao-responsavel').value),
+                    status: acaoExistente?.status || 'ABERTA',
+                    reprazos: acaoExistente?.reprazos || [],
+                    evidencias: acaoExistente?.evidencias || [],
+                    dataConclusao: acaoExistente?.dataConclusao || ''
+                };
+                const idxAcao = acoes.findIndex(acao => acao.id === payload.id);
+                if (idxAcao >= 0) acoes[idxAcao] = payload;
+                else acoes.push(payload);
+                state.selectedRNC = state.rncs[rncIndex];
+                await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+            };
+        }
+
+        function obterHistoricoReprazoHtmlD7(acao) {
+            const reprazos = normalizeAcaoD7(acao).reprazos || [];
+            if (!reprazos.length) return '<div style="color:#64748b;">Sem re-prazo aplicado.</div>';
+            return `<ul style="padding-left:1.25rem; color:#334155;">${reprazos.map(item => `<li>Nº ${item.numero}: ${formatDateSafe(item.data)} - ${escapeHtml(item.justificativa || '-')}</li>`).join('')}</ul>`;
+        }
+
+        function abrirImplementacaoAcaoD7(acaoId) {
+            const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+            if (rncIndex === -1) return;
+            state.rncs[rncIndex].d7.listaAcoes = state.rncs[rncIndex].d7.listaAcoes || [];
+            const acoes = state.rncs[rncIndex].d7.listaAcoes;
+            const acaoIndex = acoes.findIndex(acao => acao.id === acaoId);
+            if (acaoIndex === -1) return;
+            const acao = normalizeAcaoD7(acoes[acaoIndex]);
+            const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width: 780px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Implementação da Ação Preventiva</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                            <h4 style="font-weight:700; margin-bottom:0.75rem;">Informações de Cadastro</h4>
+                            <div><strong>Descrição:</strong> ${escapeHtml(acao.descricao || '-')}</div>
+                            <div><strong>Responsável:</strong> ${escapeHtml(responsavelAcao)}</div>
+                            <div><strong>Origem da prevenção:</strong> ${escapeHtml(acao.origemPrevencao || '-')}</div>
+                            <div><strong>Prazo Original:</strong> ${formatDateSafe(acao.prazoPrincipal)}</div>
+                            <div style="margin-top:0.5rem;"><strong>Histórico de Re-prazo:</strong> ${obterHistoricoReprazoHtmlD7(acao)}</div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>Novo Re-prazo</label>
+                                <input type="date" id="d7-acao-reprazo-data">
+                            </div>
+                            <div class="form-group">
+                                <label>Justificativa do Re-prazo</label>
+                                <input type="text" id="d7-acao-reprazo-just" placeholder="Obrigatória ao aplicar re-prazo">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Anexo de Evidências da Implementação</label>
+                            <input type="file" id="d7-acao-evidencia-file" accept=".pdf,image/*">
+                            ${acao.evidencias?.length ? `<div style="margin-top:0.5rem; color:#475569; font-size:0.8125rem;">Evidências anexadas: ${acao.evidencias.length}</div>` : ''}
+                        </div>
+                        <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" id="d7-salvar-acao-btn">Salvar Alterações</button>
+                            <button type="button" class="btn btn-success" id="d7-concluir-acao-btn" ${acao.evidencias?.length ? '' : 'disabled'} aria-disabled="${acao.evidencias?.length ? 'false' : 'true'}">Concluir Ação Preventiva</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => e.target === overlay && overlay.remove();
+            document.body.appendChild(overlay);
+
+            const evidenciaInput = overlay.querySelector('#d7-acao-evidencia-file');
+            const concluirBtn = overlay.querySelector('#d7-concluir-acao-btn');
+            const atualizarEstadoConcluir = () => {
+                const habilitado = !!(acao.evidencias?.length || evidenciaInput.files?.length);
+                concluirBtn.disabled = !habilitado;
+                concluirBtn.setAttribute('aria-disabled', habilitado ? 'false' : 'true');
+            };
+            evidenciaInput.onchange = atualizarEstadoConcluir;
+            atualizarEstadoConcluir();
+
+            const aplicarAtualizacoes = async () => {
+                const reprazoData = overlay.querySelector('#d7-acao-reprazo-data').value;
+                const reprazoJust = overlay.querySelector('#d7-acao-reprazo-just').value.trim();
+                if (reprazoData && !reprazoJust) {
+                    alert('Justificativa é obrigatória para aplicar re-prazo.');
+                    return false;
+                }
+                if (reprazoData) {
+                    const numero = (acao.reprazos?.length || 0) + 1;
+                    acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
+                }
+                if (evidenciaInput.files?.length) {
+                    const arquivo = evidenciaInput.files[0];
+                    const base64 = await lerArquivoBase64(arquivo, 'evidência da ação D7');
+                    if (base64 === null) {
+                        alert('Falha ao processar evidência. Tente novamente.');
+                        return false;
+                    }
+                    acao.evidencias = acao.evidencias || [];
+                    acao.evidencias.push({ nome: arquivo.name, conteudo: base64, data: new Date().toISOString() });
+                }
+                return true;
+            };
+
+            overlay.querySelector('#d7-salvar-acao-btn').onclick = async () => {
+                const ok = await aplicarAtualizacoes();
+                if (!ok) return;
+                acoes[acaoIndex] = acao;
+                state.selectedRNC = state.rncs[rncIndex];
+                await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+            };
+
+            concluirBtn.onclick = async () => {
+                if (!acao.evidencias?.length && !evidenciaInput.files?.length) {
+                    alert('Anexe pelo menos uma evidência para concluir a ação preventiva.');
+                    return;
+                }
+                const ok = await aplicarAtualizacoes();
+                if (!ok) return;
+                acao.status = 'CONCLUIDA';
+                acao.dataConclusao = new Date().toISOString();
+                acoes[acaoIndex] = acao;
+                state.selectedRNC = state.rncs[rncIndex];
+                await salvarRNCNoFirebase(state.selectedRNC);
+                overlay.remove();
+                render();
+            };
+        }
+
         async function salvarFase(phaseId) {
             const rnc = state.selectedRNC;
             const rncIndex = state.rncs.findIndex(r => r.id === rnc.id);
@@ -3059,7 +3323,7 @@
             } else if (phaseId === 'd6') {
                 return;
             } else if (phaseId === 'd7') {
-                state.rncs[rncIndex].d7.acoesPreventivas = document.getElementById('d7-acoes').value;
+                return;
             } else if (phaseId === 'd8') {
                 state.rncs[rncIndex].d8.reconhecimento = document.getElementById('d8-reconhecimento').value;
                 state.rncs[rncIndex].d8.licaoAprendida = document.getElementById('d8-licao').value;
@@ -3275,7 +3539,7 @@
                         d4: { causaRaiz: "", why1: "", why2: "", why3: "", why4: "", why5: "" },
                         d5: { acoesCorretivas: "" },
                         d6: { planoImplementacao: "", responsavel: "", prazoImplementacao: "" },
-                        d7: { acoesPreventivas: "" },
+                        d7: { acoesPreventivas: "", listaAcoes: [] },
                         d8: { reconhecimento: "", licaoAprendida: "" },
                         prazos: {
                             d1: { original: dataAbertura, sla: "Imediato", reprazo1: null, reprazo2: null, just1: "", just2: "" },
