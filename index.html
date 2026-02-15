@@ -632,6 +632,64 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 1.5rem;
         }
+
+        .d2-image-layout {
+            --d2-image-height: 220px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .d2-image-card {
+            background: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .d2-image-card.green {
+            border: 2px solid #16a34a;
+        }
+
+        .d2-image-card.red {
+            border: 2px solid #dc2626;
+        }
+
+        .d2-image-preview {
+            width: 100%;
+            height: var(--d2-image-height);
+            object-fit: cover;
+            display: block;
+            cursor: zoom-in;
+            border: 0;
+            box-shadow: none;
+        }
+
+        .d2-image-empty {
+            width: 100%;
+            height: var(--d2-image-height);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            background: #f8fafc;
+        }
+
+        .d2-image-label {
+            padding: 0.5rem 0.75rem;
+            text-align: center;
+            font-weight: 600;
+            color: #111827;
+            background: #fff;
+        }
+
+        .d2-image-card.green .d2-image-label {
+            border-top: 2px solid #16a34a;
+        }
+
+        .d2-image-card.red .d2-image-label {
+            border-top: 2px solid #dc2626;
+        }
         
         /* LOGIN */
         .login-container {
@@ -2409,20 +2467,20 @@
                                 <input type="text" value="${escapeHtml(rnc.quantidade ?? '')}" readonly>
                             </div>
                         </div>
-                        <div class="grid-2" style="margin-top:0.5rem;">
-                            <div class="form-group">
-                                <label>Peça Conforme</label>
+                        <div class="d2-image-layout">
+                            <div class="d2-image-card green">
                                 ${fotoConformeSrc
-                                    ? `<img src="${escapeHtml(fotoConformeSrc)}" alt="Peça conforme" class="d2-image-preview" data-image-src="${escapeHtml(fotoConformeSrc)}" data-image-title="Peça Conforme" role="button" tabindex="0" style="width:100%; max-width:260px; border:2px solid #16a34a; border-radius:8px; object-fit:cover; cursor:zoom-in;">`
-                                    : `<div style="color:#94a3b8;">Sem foto</div>`
+                                    ? `<img src="${escapeHtml(fotoConformeSrc)}" alt="Peça conforme" class="d2-image-preview" data-image-src="${escapeHtml(fotoConformeSrc)}" data-image-title="Peça Conforme" role="button" tabindex="0">`
+                                    : `<div class="d2-image-empty">Sem foto</div>`
                                 }
+                                <div class="d2-image-label">Peça Conforme</div>
                             </div>
-                            <div class="form-group">
-                                <label>Peça Não Conforme</label>
+                            <div class="d2-image-card red">
                                 ${fotoNaoConformeSrc
-                                    ? `<img src="${escapeHtml(fotoNaoConformeSrc)}" alt="Peça não conforme" class="d2-image-preview" data-image-src="${escapeHtml(fotoNaoConformeSrc)}" data-image-title="Peça Não Conforme" role="button" tabindex="0" style="width:100%; max-width:260px; border:2px solid #dc2626; border-radius:8px; object-fit:cover; cursor:zoom-in;">`
-                                    : `<div style="color:#94a3b8;">Sem foto</div>`
+                                    ? `<img src="${escapeHtml(fotoNaoConformeSrc)}" alt="Peça não conforme" class="d2-image-preview" data-image-src="${escapeHtml(fotoNaoConformeSrc)}" data-image-title="Peça Não Conforme" role="button" tabindex="0">`
+                                    : `<div class="d2-image-empty">Sem foto</div>`
                                 }
+                                <div class="d2-image-label">Peça Não Conforme</div>
                             </div>
                         </div>
                     </div>
