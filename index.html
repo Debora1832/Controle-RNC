@@ -4450,7 +4450,13 @@
                     <meta charset="UTF-8" />
                     <title>${escapeHtml(nomeArquivoPdf)}</title>
                     <style>
-                        @page { size: A4 portrait; margin: 2cm; }
+                        @page {
+                            size: A4 portrait;
+                            margin-top: 2cm;
+                            margin-right: 2cm;
+                            margin-bottom: 2cm;
+                            margin-left: 2cm;
+                        }
                         body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
                         .pdf-toolbar { position: sticky; top: 0; z-index: 999; display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; background:#f1f5f9; padding:8px; border:1px solid #bfdbfe; border-radius:6px; }
                         .pdf-toolbar button { border:none; border-radius:5px; padding:6px 12px; font-size:12px; cursor:pointer; }
@@ -4479,9 +4485,14 @@
                         .pdf-muted { color:#64748b; font-style:italic; margin-top:4px; }
                         .pdf-image-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
                         .pdf-image-card { border:1px solid #bfdbfe; border-radius:6px; padding:6px; break-inside: avoid; background:#fff; }
-                        .pdf-image-card.green, .pdf-image-card.red { border-color:#bfdbfe; }
-                        .pdf-image-title { font-weight:700; margin-bottom:6px; color:#1e40af; }
+                        .pdf-image-card.green { border:2px solid #16a34a; background:#f0fdf4; }
+                        .pdf-image-card.red { border:2px solid #dc2626; background:#fef2f2; }
+                        .pdf-image-title { font-weight:700; margin-bottom:6px; color:#1e40af; padding:4px 6px; border-radius:4px; }
+                        .pdf-image-card.green .pdf-image-title { background:#16a34a; color:#fff; }
+                        .pdf-image-card.red .pdf-image-title { background:#dc2626; color:#fff; }
                         .pdf-image-card img { width:100%; max-height:240px; object-fit:contain; border:1px solid #bfdbfe; background:white; display:block; margin:0 auto; }
+                        .pdf-image-card.green img { border-color:#16a34a; }
+                        .pdf-image-card.red img { border-color:#dc2626; }
                         .pdf-action-block { border:1px solid #bfdbfe; border-radius:6px; padding:8px; margin-bottom:8px; break-inside: avoid; }
                         .pdf-action-block h4 { margin:0 0 6px; font-size:13px; }
                         .pdf-evidence-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:6px; }
