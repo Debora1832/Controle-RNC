@@ -180,6 +180,125 @@
             padding: 0 0.3rem;
         }
 
+        .alerts-popover-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 1100;
+            background: transparent;
+            pointer-events: none;
+        }
+
+        .alerts-popover-overlay.active {
+            display: block;
+        }
+
+        .alerts-popover {
+            position: absolute;
+            top: 74px;
+            right: 2rem;
+            width: min(520px, calc(100vw - 2rem));
+            max-height: calc(100vh - 96px);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid #dbe2ea;
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+            pointer-events: auto;
+        }
+
+        .alerts-popover-header {
+            padding: 1rem 1.1rem 0.8rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .alerts-popover-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .alerts-popover-subtitle {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: 0.3rem;
+        }
+
+        .alerts-popover-content {
+            overflow-y: auto;
+            padding: 0.9rem 1.1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+        }
+
+        .alerts-section-title {
+            font-size: 0.79rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #334155;
+            margin-bottom: 0.4rem;
+            font-weight: 700;
+        }
+
+        .alerts-item-card {
+            width: 100%;
+            text-align: left;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            padding: 0.75rem 0.85rem;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+
+        .alerts-item-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .alerts-item-card.red {
+            border-left: 4px solid #dc2626;
+        }
+
+        .alerts-item-card.orange {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .alerts-item-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .alerts-item-line {
+            font-size: 0.8rem;
+            color: #334155;
+            line-height: 1.35;
+        }
+
+        .alerts-empty {
+            border: 1px dashed #cbd5e1;
+            border-radius: 10px;
+            padding: 0.8rem;
+            color: #64748b;
+            font-size: 0.82rem;
+            background: #f8fafc;
+        }
+
+        .alerts-popover-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.65rem;
+            border-top: 1px solid #e2e8f0;
+            padding: 0.85rem 1.1rem;
+            background: #f8fafc;
+        }
+
         .top-user {
             display: flex;
             align-items: center;
@@ -1125,6 +1244,8 @@
             currentUser: null,
             perfilModalAberto: false,
             perfilAbaAtiva: 'perfil',
+            alertsModalAberto: false,
+            pendingActionAlert: null,
             exportModalAberto: false,
             exportAnalisesSelecionadas: {
                 resumoGeral: true,
@@ -1671,6 +1792,96 @@
             return isRncEmRisco(rnc) ? 'AT_RISK' : 'ON_TIME';
         }
 
+        function getRNCsBaseAlerta() {
+            const rncsFiltradas = getDashboardCompetenciaRncs();
+            const base = rncsFiltradas.length ? rncsFiltradas : state.rncs;
+            return base.filter(rnc => !isEtapaConcluida(rnc, 'd8'));
+        }
+
+        function getPrazoGeralRNC(rnc) {
+            const faseAtual = rnc?.faseAtual && rnc.prazos?.[rnc.faseAtual] ? rnc.faseAtual : 'd8';
+            return getPrazoVigenteEtapa(rnc?.prazos?.[faseAtual]);
+        }
+
+        function getAlertasSistema() {
+            const hojeISO = new Date().toISOString().slice(0, 10);
+            const rncsBase = getRNCsBaseAlerta();
+            const acoesAtrasadas = [];
+            const rncsProximasVencimento = [];
+            const rncsEmRisco = [];
+
+            rncsBase.forEach(rnc => {
+                const acoesCorretivas = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
+                acoesCorretivas.forEach(acao => {
+                    const indicador = obterIndicadorPrazoAcao(acao);
+                    if (acao.status !== 'CONCLUIDA' && indicador.className === CLASS_INDICADOR_ATRASO) {
+                        const prazoVigente = obterPrazoVigenteAcao(acao);
+                        const atrasoDias = Number(diffDays(prazoVigente, hojeISO) || 0);
+                        acoesAtrasadas.push({
+                            tipo: 'CORRETIVA',
+                            rncId: rnc.id,
+                            rncNumero: rnc.numero,
+                            acaoId: acao.id,
+                            descricao: acao.descricao || 'Ação sem descrição',
+                            responsavel: getPessoaById(acao.responsavelId)?.nome || acao.responsavel || getResponsavelRNC(rnc),
+                            prazo: prazoVigente,
+                            atrasoDias
+                        });
+                    }
+                });
+
+                const acoesPreventivas = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
+                acoesPreventivas.forEach(acao => {
+                    const indicador = obterIndicadorPrazoAcao(acao);
+                    if (acao.status !== 'CONCLUIDA' && indicador.className === CLASS_INDICADOR_ATRASO) {
+                        const prazoVigente = obterPrazoVigenteAcao(acao);
+                        const atrasoDias = Number(diffDays(prazoVigente, hojeISO) || 0);
+                        acoesAtrasadas.push({
+                            tipo: 'PREVENTIVA',
+                            rncId: rnc.id,
+                            rncNumero: rnc.numero,
+                            acaoId: acao.id,
+                            descricao: acao.descricao || 'Ação preventiva sem descrição',
+                            responsavel: getPessoaById(acao.responsavelId)?.nome || acao.responsavel || getResponsavelRNC(rnc),
+                            prazo: prazoVigente,
+                            atrasoDias
+                        });
+                    }
+                });
+
+                const prazoGeral = getPrazoGeralRNC(rnc);
+                const hoje = parseISODate(hojeISO);
+                const prazoGeralDate = parseISODate(prazoGeral);
+                const diasAteVencimento = (hoje && prazoGeralDate)
+                    ? Math.floor((prazoGeralDate.getTime() - hoje.getTime()) / (24 * 60 * 60 * 1000))
+                    : Number.NaN;
+                if (prazoGeral && !Number.isNaN(diasAteVencimento) && diasAteVencimento >= 0 && diasAteVencimento <= DIAS_ALERTA_VENCIMENTO_RNC) {
+                    rncsProximasVencimento.push({
+                        rncId: rnc.id,
+                        rncNumero: rnc.numero,
+                        faseAtual: phases.find(p => p.id === rnc.faseAtual)?.name || 'Etapa em andamento',
+                        vencimento: prazoGeral
+                    });
+                }
+
+                if (isRncEmRisco(rnc)) {
+                    const etapaCritica = getEtapasEmAtraso(rnc)[0]?.phaseName || (phases.find(p => p.id === rnc.faseAtual)?.name || 'Etapa em andamento');
+                    rncsEmRisco.push({
+                        rncId: rnc.id,
+                        rncNumero: rnc.numero,
+                        etapaCritica
+                    });
+                }
+            });
+
+            return {
+                acoesAtrasadas,
+                rncsProximasVencimento,
+                rncsEmRisco,
+                total: acoesAtrasadas.length + rncsProximasVencimento.length + rncsEmRisco.length
+            };
+        }
+
         function getDashboardCompetenciaRncs() {
             return state.rncs.filter(rnc => {
                 if (!rnc?.dataAbertura) return false;
@@ -2028,6 +2239,8 @@
         }
 
         const RNC_NUMERO_DUPLICADO_MSG = '⚠️ Já existe uma RNC cadastrada com este número. Informe um número diferente.';
+        const DIAS_ALERTA_VENCIMENTO_RNC = 3;
+        const CLASS_INDICADOR_ATRASO = 'red';
 
         function existeNumeroRNCDuplicado(numero) {
             const alvo = normalizeNumeroRNC(numero);
@@ -2431,6 +2644,7 @@
                     ${renderModal()}
                     ${renderPerfilModal()}
                     ${renderExportAnaliticoModal()}
+                    ${renderAlertasModal()}
                 `;
             }
             
@@ -2491,7 +2705,7 @@
         }
 
         function renderTopBar() {
-            const alertas = state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length;
+            const alertasResumo = getAlertasSistema();
             return `
                 <div class="top-bar">
                     <div class="top-brand">
@@ -2499,9 +2713,9 @@
                         <div class="top-institutional">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
                     </div>
                     <div class="top-bar-actions">
-                        <button class="notification-btn" type="button" title="Notificações">
+                        <button class="notification-btn" id="abrirAlertasBtn" type="button" title="Avisos e pendências">
                             ${renderIcon('bell')}
-                            <span class="notification-badge">${alertas}</span>
+                            ${alertasResumo.total > 0 ? `<span class="notification-badge">${alertasResumo.total}</span>` : ''}
                         </button>
                         <div class="top-user" id="abrirPerfilModal" role="button" tabindex="0" title="Perfil e segurança">
                             <div class="top-user-meta">
@@ -2509,6 +2723,83 @@
                                 <div class="top-user-role">${escapeHtml(state.currentUser.role)} • ${escapeHtml(state.currentUser.planta || 'Matriz')}</div>
                             </div>
                             <div class="user-avatar" style="width: 38px; height: 38px; margin: 0; font-size: 0.9rem;">${state.currentUser.initials}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAlertasModal() {
+            if (!state.alertsModalAberto) return '';
+            const alertas = getAlertasSistema();
+            const renderSecaoAcoesAtrasadas = alertas.acoesAtrasadas.length
+                ? `
+                    <div>
+                        <div class="alerts-section-title">Ações atrasadas</div>
+                        ${alertas.acoesAtrasadas.map(alerta => `
+                            <button
+                                type="button"
+                                class="alerts-item-card red alerts-open-acao"
+                                data-alerta-tipo="${escapeHtml(alerta.tipo)}"
+                                data-rnc-id="${Number(alerta.rncId)}"
+                                data-acao-id="${escapeHtml(String(alerta.acaoId || ''))}">
+                                <div class="alerts-item-label">Ação atrasada</div>
+                                <div class="alerts-item-line">RNC: ${escapeHtml(alerta.rncNumero)}</div>
+                                <div class="alerts-item-line">Ação: ${escapeHtml(alerta.descricao)}</div>
+                                <div class="alerts-item-line">Responsável: ${escapeHtml(alerta.responsavel)}</div>
+                                <div class="alerts-item-line">Prazo: ${formatDateSafe(alerta.prazo)} (Atraso: ${alerta.atrasoDias} dia${alerta.atrasoDias === 1 ? '' : 's'})</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `
+                : '';
+
+            const renderSecaoRncProximas = alertas.rncsProximasVencimento.length
+                ? `
+                    <div>
+                        <div class="alerts-section-title">RNCs próximas do vencimento</div>
+                        ${alertas.rncsProximasVencimento.map(alerta => `
+                            <button type="button" class="alerts-item-card orange alerts-open-rnc" data-rnc-id="${Number(alerta.rncId)}">
+                                <div class="alerts-item-label">RNC próxima do vencimento</div>
+                                <div class="alerts-item-line">RNC: ${escapeHtml(alerta.rncNumero)}</div>
+                                <div class="alerts-item-line">Fase atual: ${escapeHtml(alerta.faseAtual)}</div>
+                                <div class="alerts-item-line">Vencimento: ${formatDateSafe(alerta.vencimento)}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `
+                : '';
+
+            const renderSecaoRncRisco = alertas.rncsEmRisco.length
+                ? `
+                    <div>
+                        <div class="alerts-section-title">RNCs em risco</div>
+                        ${alertas.rncsEmRisco.map(alerta => `
+                            <button type="button" class="alerts-item-card red alerts-open-rnc" data-rnc-id="${Number(alerta.rncId)}">
+                                <div class="alerts-item-label">RNC em risco</div>
+                                <div class="alerts-item-line">RNC: ${escapeHtml(alerta.rncNumero)}</div>
+                                <div class="alerts-item-line">Etapa crítica: ${escapeHtml(alerta.etapaCritica)}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                `
+                : '';
+
+            const semAlertas = !renderSecaoAcoesAtrasadas && !renderSecaoRncProximas && !renderSecaoRncRisco;
+
+            return `
+                <div class="alerts-popover-overlay active" id="alertsPopoverOverlay">
+                    <div class="alerts-popover">
+                        <div class="alerts-popover-header">
+                            <div class="alerts-popover-title">Avisos e Pendências</div>
+                            <div class="alerts-popover-subtitle">Ações e RNCs que exigem atenção</div>
+                        </div>
+                        <div class="alerts-popover-content">
+                            ${semAlertas ? `<div class="alerts-empty">Nenhum alerta ativo no período selecionado.</div>` : `${renderSecaoAcoesAtrasadas}${renderSecaoRncProximas}${renderSecaoRncRisco}`}
+                        </div>
+                        <div class="alerts-popover-footer">
+                            <button type="button" class="btn btn-secondary" id="fecharAlertasBtn">Fechar</button>
+                            <button type="button" class="btn btn-primary" id="irControleViaAlertasBtn">Ver Controle 8D</button>
                         </div>
                     </div>
                 </div>
@@ -4767,6 +5058,36 @@
             };
         }
 
+        function fecharAlertasModal() {
+            state.alertsModalAberto = false;
+            render();
+        }
+
+        function abrirRNCViaAlerta(rncId, etapaPreferida) {
+            const rnc = state.rncs.find(item => item.id === Number(rncId));
+            if (!rnc) return;
+            state.currentPage = 'controle';
+            state.selectedRNC = rnc;
+            sincronizarFluxo8D(state.selectedRNC);
+            const etapaDestino = etapaPreferida && canAcessarEtapa(state.selectedRNC, etapaPreferida)
+                ? etapaPreferida
+                : (state.selectedRNC.faseAtual || 'd1');
+            state.activeTab = etapaDestino;
+            state.activeD4SubTab = 'principal';
+            state.alertsModalAberto = false;
+            render();
+        }
+
+        function abrirAlertaRNC(rncId) {
+            abrirRNCViaAlerta(rncId);
+        }
+
+        function abrirAlertaAcao(tipo, rncId, acaoId) {
+            const etapa = tipo === 'PREVENTIVA' ? 'd7' : 'd6';
+            state.pendingActionAlert = { tipo, acaoId };
+            abrirRNCViaAlerta(rncId, etapa);
+        }
+ 
         function attachEventListeners() {
             const loginForm = document.getElementById('loginForm');
             if (loginForm) {
@@ -4819,7 +5140,71 @@
                     }
                 };
             }
-            
+
+            const abrirAlertasBtn = document.getElementById('abrirAlertasBtn');
+            if (abrirAlertasBtn) {
+                abrirAlertasBtn.onclick = () => {
+                    state.alertsModalAberto = !state.alertsModalAberto;
+                    render();
+                };
+            }
+
+            const alertsPopoverOverlay = document.getElementById('alertsPopoverOverlay');
+            if (alertsPopoverOverlay) {
+                alertsPopoverOverlay.onclick = (event) => {
+                    if (event.target === alertsPopoverOverlay) {
+                        state.alertsModalAberto = false;
+                        render();
+                    }
+                };
+            }
+
+            const fecharAlertasBtn = document.getElementById('fecharAlertasBtn');
+            if (fecharAlertasBtn) {
+                fecharAlertasBtn.onclick = () => fecharAlertasModal();
+            }
+
+            const irControleViaAlertasBtn = document.getElementById('irControleViaAlertasBtn');
+            if (irControleViaAlertasBtn) {
+                irControleViaAlertasBtn.onclick = () => {
+                    state.currentPage = 'controle';
+                    state.alertsModalAberto = false;
+                    render();
+                };
+            }
+
+            if (state.pendingActionAlert && state.selectedRNC) {
+                const pending = state.pendingActionAlert;
+                try {
+                    if (pending.tipo === 'PREVENTIVA') {
+                        abrirImplementacaoAcaoD7(pending.acaoId);
+                    } else {
+                        abrirImplementacaoAcaoD6(pending.acaoId);
+                    }
+                    state.pendingActionAlert = null;
+                } catch (error) {
+                    console.warn('Falha ao abrir ação de alerta pendente.', error);
+                }
+            }
+
+            document.querySelectorAll('.alerts-open-rnc').forEach(btn => {
+                btn.onclick = () => {
+                    const rncId = Number(btn.dataset.rncId);
+                    if (!Number.isFinite(rncId)) return;
+                    abrirAlertaRNC(rncId);
+                };
+            });
+
+            document.querySelectorAll('.alerts-open-acao').forEach(btn => {
+                btn.onclick = () => {
+                    const tipo = String(btn.dataset.alertaTipo || '');
+                    const rncId = Number(btn.dataset.rncId);
+                    const acaoId = String(btn.dataset.acaoId || '');
+                    if (!tipo || !Number.isFinite(rncId) || !acaoId) return;
+                    abrirAlertaAcao(tipo, rncId, acaoId);
+                };
+            });
+             
             document.querySelectorAll('.btn-view').forEach(btn => {
                 btn.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == btn.dataset.rncId);
