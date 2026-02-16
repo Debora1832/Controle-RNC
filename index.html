@@ -30,17 +30,54 @@
             overflow-y: auto;
             box-shadow: 4px 0 24px rgba(11, 31, 58, 0.25);
             z-index: 100;
+            transition: width 0.25s ease, transform 0.25s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 72px;
         }
         
         .sidebar-header {
             padding: 2rem 1.5rem;
             background: rgba(255, 255, 255, 0.04);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            flex-direction: column;
+            gap: 0.5rem;
         }
         
         .sidebar-header h2 {
             font-size: 1.5rem;
             font-weight: 800;
+        }
+
+        .menu-toggle-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .menu-toggle-btn:focus-visible,
+        .nav-item:focus-visible {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .sidebar.collapsed .sidebar-header h2 {
+            display: none;
+        }
+
+        .sidebar.collapsed .sidebar-header {
+            align-items: center;
         }
         
         .user-info {
@@ -77,6 +114,23 @@
             gap: 0.875rem;
             transition: all 0.25s;
             font-weight: 500;
+            position: relative;
+        }
+
+        .nav-icon {
+            display: inline-flex;
+            width: 20px;
+            height: 20px;
+            color: #dbeafe;
+            flex: 0 0 20px;
+        }
+
+        .nav-label {
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .nav-label {
+            display: none;
         }
         
         .nav-item:hover {
@@ -98,11 +152,38 @@
             font-size: 0.75rem;
             font-weight: 700;
         }
+
+        .sidebar.collapsed .nav-badge {
+            position: absolute;
+            right: 6px;
+            top: 6px;
+            margin-left: 0;
+            padding: 0.2rem 0.45rem;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+        }
         
         /* MAIN CONTENT */
         .main-content {
             margin-left: 280px;
             min-height: 100vh;
+            transition: margin-left 0.25s ease;
+        }
+
+        .main-content.sidebar-collapsed {
+            margin-left: 72px;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.42);
+            z-index: 90;
         }
         
         .top-bar {
@@ -123,6 +204,19 @@
             align-items: center;
             gap: 1rem;
             min-width: 0;
+        }
+
+        .top-menu-btn {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
 
         .top-logo {
@@ -1239,6 +1333,24 @@
         
         /* Responsive */
         @media (max-width: 768px) {
+            .top-menu-btn {
+                display: inline-flex;
+            }
+
+            .sidebar.mobile {
+                width: 280px;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.mobile.open {
+                transform: translateX(0);
+            }
+
+            .main-content,
+            .main-content.sidebar-collapsed {
+                margin-left: 0;
+            }
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
@@ -1280,6 +1392,11 @@
             console.warn('Falha ao inicializar Firebase:', error);
         }
 
+        const SIDEBAR_STATE_KEY = 'magius-sidebar-collapsed';
+        const SIDEBAR_COLLAPSED_VALUE = '1';
+        const SIDEBAR_EXPANDED_VALUE = '0';
+        const SIDEBAR_AUTO_COLLAPSE_BREAKPOINT = 1024;
+
         // ESTADO GLOBAL
         let state = {
             currentPage: 'login',
@@ -1320,16 +1437,35 @@
             dashboardFilterYear: new Date().getFullYear(),
             dashboardSearch: '',
             dashboardPage: 1,
+            sidebarCollapsed: (() => {
+                try {
+                    const persisted = localStorage.getItem(SIDEBAR_STATE_KEY);
+                    if (persisted !== null) return persisted === SIDEBAR_COLLAPSED_VALUE;
+                } catch (error) {
+                    console.warn('Falha ao ler estado do menu lateral:', error);
+                }
+                return window.innerWidth <= SIDEBAR_AUTO_COLLAPSE_BREAKPOINT;
+            })(),
+            mobileMenuOpen: false,
             controleFilters: {
                 status: '',
                 setor: '',
                 conclusao: '',
                 etapas: '',
-                busca: ''
+                busca: '',
+                showExcluidas: false
             },
             controleSort: {
                 key: '',
                 dir: 'asc'
+            },
+            movimentacoesFilters: {
+                dataInicio: '',
+                dataFim: '',
+                usuario: '',
+                tipoAcao: '',
+                modulo: '',
+                numeroRnc: ''
             },
             selectedRNC: null,
             activeTab: 'd1',
@@ -1548,6 +1684,7 @@
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", profile: "ADMIN", planta: "Matriz", initials: "DS" }
         ];
         const SENHA_PADRAO_SISTEMA = 'Magius@123';
+        const MIN_DELETE_REASON_LENGTH = 10;
         const userPasswords = { "debora@empresa.com": SENHA_PADRAO_SISTEMA };
 
         let pessoasBase = [
@@ -1593,7 +1730,15 @@
                 analytics: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
                 list: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
                 bell: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>',
-                report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>'
+                report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>',
+                trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+                menu: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>',
+                dashboard: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>',
+                control: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9"/></svg>',
+                register: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3h8"/><path d="M9 3v4"/><path d="M15 3v4"/><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M8 12h8"/><path d="M8 16h6"/></svg>',
+                base: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
+                logs: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h12"/><path d="M8 12h12"/><path d="M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+                logout: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>'
             };
             return icons[type] || icons.chart;
         }
@@ -1749,14 +1894,67 @@
             return String(state.currentUser?.profile || '').toUpperCase() === 'ADMIN';
         }
 
-        function registrarAuditoriaAdmin(acao, detalhe) {
-            auditoriaAdmin.unshift({
-                acao,
-                detalhe,
-                por: state.currentUser?.name || 'Sistema',
-                data: new Date().toISOString()
-            });
+        function isMobileView() {
+            return window.innerWidth <= 768;
+        }
+
+        function persistSidebarState() {
+            try {
+                localStorage.setItem(SIDEBAR_STATE_KEY, state.sidebarCollapsed ? SIDEBAR_COLLAPSED_VALUE : SIDEBAR_EXPANDED_VALUE);
+            } catch (error) {
+                console.warn('Falha ao persistir estado do menu lateral:', error);
+            }
+        }
+
+        function toggleSidebar() {
+            if (isMobileView()) {
+                state.mobileMenuOpen = !state.mobileMenuOpen;
+                render();
+                return;
+            }
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            persistSidebarState();
+            render();
+        }
+
+        function isRncExcluida(rnc) {
+            return String(rnc?.status || '').toUpperCase() === 'EXCLUIDA';
+        }
+
+        function isRncAtiva(rnc) {
+            return !isRncExcluida(rnc);
+        }
+
+        function registrarMovimentacao({ tipoAcao, modulo, referencia = '', descricao = '', usuario, perfil, data } = {}) {
+            const registro = {
+                data: data || new Date().toISOString(),
+                usuario: usuario || state.currentUser?.name || 'Sistema',
+                perfil: (perfil || state.currentUser?.profile || 'SISTEMA').toUpperCase(),
+                tipoAcao: String(tipoAcao || 'EDIÇÃO').toUpperCase(),
+                modulo: String(modulo || 'Sistema'),
+                referencia: String(referencia || ''),
+                descricao: String(descricao || '')
+            };
+            registro.acao = registro.tipoAcao;
+            registro.detalhe = `${registro.modulo}${registro.referencia ? ` • ${registro.referencia}` : ''} • ${registro.descricao}`;
+            registro.por = registro.usuario;
+            auditoriaAdmin.unshift(registro);
             auditoriaAdmin = auditoriaAdmin.slice(0, MAX_ADMIN_AUDIT_RECORDS);
+            if (db) {
+                salvarCadastrosBaseNoFirebase().catch(() => {});
+            }
+        }
+
+        function registrarAuditoriaAdmin(acao, detalhe, extras = {}) {
+            registrarMovimentacao({
+                tipoAcao: extras.tipoAcao || acao || 'EDIÇÃO',
+                modulo: extras.modulo || 'Admin',
+                referencia: extras.referencia || '',
+                descricao: detalhe || extras.descricao || '',
+                usuario: extras.usuario,
+                perfil: extras.perfil,
+                data: extras.data
+            });
         }
 
         function aplicarTemplateEmail(template, contexto = {}) {
@@ -1880,7 +2078,11 @@
             if (phaseId === 'd5') return (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).length > 0;
             if (phaseId === 'd6') {
                 const acoes = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
-                return acoes.length > 0 && acoes.every(acao => acao.status === 'CONCLUIDA' && (acao.evidencias?.length || 0) > 0);
+                return acoes.length > 0 && acoes.every(acao =>
+                    acao.status === 'CONCLUIDA' &&
+                    (!!acao.before_image_url || (acao.evidencias?.length || 0) > 0) &&
+                    (!!acao.after_image_url || (acao.evidencias?.length || 0) > 0)
+                );
             }
             if (phaseId === 'd7') {
                 const acoes = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
@@ -1961,7 +2163,7 @@
         function getRNCsBaseAlerta() {
             const rncsFiltradas = getDashboardCompetenciaRncs();
             const base = rncsFiltradas.length ? rncsFiltradas : state.rncs;
-            return base.filter(rnc => !isEtapaConcluida(rnc, 'd8'));
+            return base.filter(rnc => isRncAtiva(rnc) && !isEtapaConcluida(rnc, 'd8'));
         }
 
         function getPrazoGeralRNC(rnc) {
@@ -2073,6 +2275,7 @@
 
         function getDashboardCompetenciaRncs() {
             return state.rncs.filter(rnc => {
+                if (!isRncAtiva(rnc)) return false;
                 if (!rnc?.dataAbertura) return false;
                 const abertura = new Date(rnc.dataAbertura);
                 if (Number.isNaN(abertura.getTime())) return false;
@@ -2089,6 +2292,7 @@
                 const month = pointDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
                 const yearShort = String(pointDate.getFullYear()).slice(-2);
                 const count = state.rncs.filter(rnc => {
+                    if (!isRncAtiva(rnc)) return false;
                     if (!rnc?.dataAbertura) return false;
                     const abertura = new Date(rnc.dataAbertura);
                     return !Number.isNaN(abertura.getTime()) &&
@@ -2532,6 +2736,11 @@
                     totalReprazosFase: Number(dados.totalReprazosFase || 0),
                     totalReprazosAcao: Number(dados.totalReprazosAcao || 0)
                 });
+                registrarAuditoriaAdmin('ENVIO', `Escalonamento automático registrado para ${dados.responsavel || 'responsável não identificado'}${dados.emailGerencia ? ` (${dados.emailGerencia})` : ''}`, {
+                    modulo: 'Template de E-mail',
+                    referencia: rnc.numero || '',
+                    tipoAcao: 'ENVIO'
+                });
             }
         }
 
@@ -2861,7 +3070,7 @@
                     const idx = listaBase.findIndex(x => x.id === item.id);
                     if (idx !== -1) {
                         listaBase.splice(idx, 1);
-                        registrarAuditoriaAdmin('Exclusão de cadastro base', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`);
+                        registrarAuditoriaAdmin('EXCLUSAO', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`, { modulo: 'Cadastro Base', referencia: item.nome, tipoAcao: 'EXCLUSAO' });
                         const salvoNoFirebase = await salvarCadastrosBaseNoFirebase();
                         if (!salvoNoFirebase) {
                             alert('Cadastro atualizado localmente, mas não foi possível salvar no Firebase agora.');
@@ -2968,12 +3177,12 @@
                         const nomeAnterior = listaBase[idx].nome;
                         listaBase[idx] = { ...listaBase[idx], ...payload };
                         propagarRenomeacaoCadastro(tipo, nomeAnterior, listaBase[idx].nome);
-                        registrarAuditoriaAdmin('Atualização de cadastro base', `${config.titulo}: ${listaBase[idx].nome}`);
+                        registrarAuditoriaAdmin('EDICAO', `${config.titulo}: ${listaBase[idx].nome}`, { modulo: 'Cadastro Base', referencia: listaBase[idx].nome, tipoAcao: 'EDICAO' });
                     }
                 } else {
                     const nextId = getNextId(listaBase);
                     listaBase.push({ id: nextId, ...payload });
-                    registrarAuditoriaAdmin('Novo cadastro base', `${config.titulo}: ${payload.nome || nextId}`);
+                    registrarAuditoriaAdmin('INCLUSAO', `${config.titulo}: ${payload.nome || nextId}`, { modulo: 'Cadastro Base', referencia: payload.nome || String(nextId), tipoAcao: 'INCLUSAO' });
                 }
                 await salvarCadastrosBaseNoFirebase();
                 overlay.remove();
@@ -2988,7 +3197,9 @@
             const payload = {
                 pessoasBase,
                 clientesBase,
-                modosFalhaBase
+                modosFalhaBase,
+                emailTemplatesBase,
+                auditoriaAdmin
             };
             return db.collection('configuracoes')
                 .doc('cadastros-base')
@@ -3009,6 +3220,10 @@
                 if (Array.isArray(data.pessoasBase)) pessoasBase = data.pessoasBase;
                 if (Array.isArray(data.clientesBase)) clientesBase = data.clientesBase;
                 if (Array.isArray(data.modosFalhaBase)) modosFalhaBase = data.modosFalhaBase;
+                if (data.emailTemplatesBase && typeof data.emailTemplatesBase === 'object') {
+                    emailTemplatesBase = { ...defaultEmailTemplates, ...data.emailTemplatesBase };
+                }
+                if (Array.isArray(data.auditoriaAdmin)) auditoriaAdmin = data.auditoriaAdmin;
             } catch (error) {
                 console.warn('Falha ao carregar cadastros base do Firebase:', error);
             }
@@ -3048,6 +3263,10 @@
                 console.warn('Salvamento não executado. RNC inválida.');
                 return Promise.resolve(false);
             }
+            if (isRncExcluida(rnc) && !isCurrentUserAdmin()) {
+                console.warn('Salvamento de exclusão bloqueado para perfil sem permissão ADMIN.');
+                return Promise.resolve(false);
+            }
 
             return db.collection('rncs')
                 .doc(String(rnc.id))
@@ -3062,7 +3281,7 @@
         function render() {
             const app = document.getElementById('app');
             state.rncs.forEach(rnc => sincronizarFluxo8D(rnc));
-            if (!isCurrentUserAdmin() && ['admin', 'cadastro-pessoas'].includes(state.currentPage)) {
+            if (!isCurrentUserAdmin() && ['admin', 'cadastro-pessoas', 'movimentacoes'].includes(state.currentPage)) {
                 state.currentPage = 'dashboard';
             }
             
@@ -3071,12 +3290,14 @@
             } else {
                 app.innerHTML = `
                     ${renderSidebar()}
-                    <div class="main-content">
+                    ${isMobileView() && state.mobileMenuOpen ? '<div class="sidebar-backdrop" id="sidebarBackdrop"></div>' : ''}
+                    <div class="main-content ${state.sidebarCollapsed ? 'sidebar-collapsed' : ''}">
                         ${renderTopBar()}
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
                             ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
                             ${(state.currentPage === 'cadastro-pessoas' || state.currentPage === 'admin') ? renderAdmin() : ''}
+                            ${state.currentPage === 'movimentacoes' ? renderMovimentacoes() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                             ${state.currentPage === 'relatorios' ? renderRelatorios() : ''}
                         </div>
@@ -3114,32 +3335,55 @@
         }
 
         function renderSidebar() {
+            const collapsed = state.sidebarCollapsed && !isMobileView();
+            const sidebarClasses = [
+                'sidebar',
+                collapsed ? 'collapsed' : '',
+                isMobileView() ? 'mobile' : '',
+                isMobileView() && state.mobileMenuOpen ? 'open' : ''
+            ].filter(Boolean).join(' ');
+            const toggleTitle = isMobileView()
+                ? (state.mobileMenuOpen ? 'Fechar menu' : 'Expandir menu')
+                : (collapsed ? 'Expandir menu' : 'Recolher menu');
             return `
-                <div class="sidebar">
+                <div class="${sidebarClasses}">
                     <div class="sidebar-header">
                         <h2>MAGIUS • 8D</h2>
+                        <button type="button" class="menu-toggle-btn" id="toggleSidebarBtn" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed ? 'false' : 'true'}">
+                            ${renderIcon('menu')}
+                        </button>
                     </div>
                     <div class="nav-menu">
-                        <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
-                            <span>Dashboard</span>
+                        <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard" title="Dashboard" aria-label="Dashboard" tabindex="0">
+                            <span class="nav-icon">${renderIcon('dashboard')}</span>
+                            <span class="nav-label">Dashboard</span>
                         </div>
-                        <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle">
-                            <span>Controle 8D</span>
-                            <span class="nav-badge">${state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length}</span>
+                        <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle" title="Controle 8D" aria-label="Controle 8D" tabindex="0">
+                            <span class="nav-icon">${renderIcon('control')}</span>
+                            <span class="nav-label">Controle 8D</span>
+                            <span class="nav-badge">${state.rncs.filter(r => isRncAtiva(r) && getStatusRncValue(r) === 'AT_RISK').length}</span>
                         </div>
-                        <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
-                            <span>Cadastro de RNC</span>
+                        <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc" title="Cadastro de RNC" aria-label="Cadastro de RNC" tabindex="0">
+                            <span class="nav-icon">${renderIcon('register')}</span>
+                            <span class="nav-label">Cadastro de RNC</span>
                         </div>
                         ${isCurrentUserAdmin() ? `
-                            <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin">
-                                <span>Cadastro Base</span>
+                            <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin" title="Cadastro Base" aria-label="Cadastro Base" tabindex="0">
+                                <span class="nav-icon">${renderIcon('base')}</span>
+                                <span class="nav-label">Cadastro Base</span>
+                            </div>
+                            <div class="nav-item ${state.currentPage === 'movimentacoes' ? 'active' : ''}" data-page="movimentacoes" title="Movimentações" aria-label="Movimentações" tabindex="0">
+                                <span class="nav-icon">${renderIcon('logs')}</span>
+                                <span class="nav-label">Movimentações</span>
                             </div>
                         ` : ''}
-                        <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
-                            <span>Relatórios</span>
+                        <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios" title="Relatórios" aria-label="Relatórios" tabindex="0">
+                            <span class="nav-icon">${renderIcon('report')}</span>
+                            <span class="nav-label">Relatórios</span>
                         </div>
-                        <div class="nav-item" data-page="logout" style="margin-top: 2rem; color: #ef4444;">
-                            <span>Sair</span>
+                        <div class="nav-item" data-page="logout" title="Sair" aria-label="Sair" tabindex="0" style="margin-top: 2rem; color: #ef4444;">
+                            <span class="nav-icon">${renderIcon('logout')}</span>
+                            <span class="nav-label">Sair</span>
                         </div>
                     </div>
                 </div>
@@ -3151,6 +3395,9 @@
             return `
                 <div class="top-bar">
                     <div class="top-brand">
+                        <button class="top-menu-btn" id="mobileSidebarBtn" type="button" title="Expandir menu" aria-label="Expandir menu">
+                            ${renderIcon('menu')}
+                        </button>
                         <div class="top-logo">MAGIUS</div>
                         <div class="top-institutional">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
                     </div>
@@ -3963,6 +4210,79 @@
             `;
         }
 
+        function renderMovimentacoes() {
+            if (!isCurrentUserAdmin()) {
+                return `
+                    <h1 class="page-title">Movimentações</h1>
+                    <div class="card">
+                        <p style="color:#475569;">Acesso restrito. Apenas usuários com perfil ADMIN podem visualizar esta área.</p>
+                    </div>
+                `;
+            }
+            const filtros = state.movimentacoesFilters || {};
+            const normalize = (v) => String(v || '').trim().toLowerCase();
+            const inicio = filtros.dataInicio ? parseISODate(filtros.dataInicio) : null;
+            const fimRaw = filtros.dataFim ? parseISODate(filtros.dataFim) : null;
+            const fim = fimRaw ? new Date(fimRaw) : null;
+            if (fim) fim.setHours(23, 59, 59, 999);
+            const logsFiltrados = auditoriaAdmin.filter(item => {
+                const data = new Date(item.data || '');
+                if (inicio && data < inicio) return false;
+                if (fim && data > fim) return false;
+                if (filtros.usuario && normalize(item.usuario || item.por) !== normalize(filtros.usuario)) return false;
+                if (filtros.tipoAcao && String(item.tipoAcao || item.acao || '').toUpperCase() !== String(filtros.tipoAcao).toUpperCase()) return false;
+                if (filtros.modulo && normalize(item.modulo) !== normalize(filtros.modulo)) return false;
+                if (filtros.numeroRnc && !normalize(item.referencia || '').includes(normalize(filtros.numeroRnc))) return false;
+                return true;
+            });
+            const usuarios = [...new Set(auditoriaAdmin.map(item => item.usuario || item.por).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            const tipos = [...new Set(auditoriaAdmin.map(item => (item.tipoAcao || item.acao || '').toUpperCase()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            const modulos = [...new Set(auditoriaAdmin.map(item => item.modulo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            return `
+                <h1 class="page-title">Movimentações / Auditoria</h1>
+                <div class="card">
+                    <div class="grid-2">
+                        <div class="form-group"><label>Data inicial</label><input type="date" id="movDataInicio" value="${escapeHtml(filtros.dataInicio || '')}"></div>
+                        <div class="form-group"><label>Data final</label><input type="date" id="movDataFim" value="${escapeHtml(filtros.dataFim || '')}"></div>
+                        <div class="form-group"><label>Usuário</label><select id="movUsuario"><option value="">Todos</option>${usuarios.map(usuario => `<option value="${escapeHtml(usuario)}" ${filtros.usuario === usuario ? 'selected' : ''}>${escapeHtml(usuario)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Tipo de ação</label><select id="movTipoAcao"><option value="">Todos</option>${tipos.map(tipo => `<option value="${escapeHtml(tipo)}" ${filtros.tipoAcao === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Módulo</label><select id="movModulo"><option value="">Todos</option>${modulos.map(modulo => `<option value="${escapeHtml(modulo)}" ${filtros.modulo === modulo ? 'selected' : ''}>${escapeHtml(modulo)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Número da RNC</label><input type="text" id="movNumeroRnc" placeholder="RNC-2026-001" value="${escapeHtml(filtros.numeroRnc || '')}"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="overflow:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Usuário</th>
+                                    <th>Perfil</th>
+                                    <th>Ação</th>
+                                    <th>Módulo</th>
+                                    <th>Referência</th>
+                                    <th>Descrição</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${logsFiltrados.length ? logsFiltrados.map(item => `
+                                    <tr>
+                                        <td>${new Date(item.data || '').toLocaleString('pt-BR')}</td>
+                                        <td>${escapeHtml(item.usuario || item.por || '-')}</td>
+                                        <td>${escapeHtml(item.perfil || '-')}</td>
+                                        <td>${escapeHtml(item.tipoAcao || item.acao || '-')}</td>
+                                        <td>${escapeHtml(item.modulo || '-')}</td>
+                                        <td>${escapeHtml(item.referencia || '-')}</td>
+                                        <td>${escapeHtml(item.descricao || item.detalhe || '-')}</td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="7" style="text-align:center; color:#64748b;">Sem registros para os filtros selecionados.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
         function getControleRows() {
             const hojeIso = new Date().toISOString().slice(0, 10);
             return state.rncs.map(rnc => {
@@ -3988,6 +4308,8 @@
             const filtros = state.controleFilters || {};
             const busca = String(filtros.busca || '').trim().toLowerCase();
             return rows.filter(item => {
+                const podeVerExcluidas = isCurrentUserAdmin() && !!filtros.showExcluidas;
+                if (isRncExcluida(item.rnc) && !podeVerExcluidas) return false;
                 const matchStatus = !filtros.status || item.statusRnc === filtros.status;
                 const matchSetor = !filtros.setor || item.rnc.setor === filtros.setor;
                 const matchConclusao = !filtros.conclusao || item.statusConclusao.value === filtros.conclusao;
@@ -4091,6 +4413,14 @@
                         <label>Buscar por número ou cliente</label>
                         <input type="text" id="controleFiltroBusca" placeholder="Ex.: RNC-2026-001 ou nome do cliente" value="${escapeHtml(state.controleFilters.busca || '')}">
                     </div>
+                    ${isCurrentUserAdmin() ? `
+                        <div class="form-group" style="margin-top:0.75rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" id="controleFiltroExcluidas" ${state.controleFilters.showExcluidas ? 'checked' : ''}>
+                                Mostrar RNCs excluídas
+                            </label>
+                        </div>
+                    ` : ''}
                 </div>
                 <div class="card">
                     <table>
@@ -4112,7 +4442,7 @@
                                 const { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, fase, governancaReprazo, dataReferencia, dataAbertura } = item;
                                 return `
                                 <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
-                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
+                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}${isRncExcluida(rnc) ? ' <span class="badge red" style="margin-left:0.4rem;">🗑️ RNC EXCLUÍDA</span>' : ''}</td>
                                     <td>${formatDateSafe(dataAbertura)}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${escapeHtml(responsavel)}</td>
@@ -4275,6 +4605,11 @@
             if (phase.id === 'd1') {
                 const equipeD1 = montarEquipeD1(rnc);
                 content += `
+                    ${isCurrentUserAdmin() && !isRncExcluida(rnc) ? `
+                        <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem;">
+                            <button type="button" class="btn btn-danger" onclick="abrirModalExcluirRNC()">${renderIcon('trash')} Excluir RNC</button>
+                        </div>
+                    ` : ''}
                     <div class="card" style="padding: 1rem; margin-top: 0.5rem;">
                         <h4 style="font-weight:700; margin-bottom:0.75rem;">Equipe da RNC</h4>
                         <table>
@@ -4642,7 +4977,7 @@
         }
 
         function normalizeAcaoD5(acao) {
-            if (!acao) return { id: '', descricao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], dataConclusao: '' };
+            if (!acao) return { id: '', descricao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], before_image_url: '', after_image_url: '', implementation_completed_at: '', implementation_completed_by: '', dataConclusao: '' };
             if (!Array.isArray(acao.reprazos)) {
                 const reprazos = [];
                 if (acao.reprazo1) reprazos.push({ numero: 1, data: acao.reprazo1, justificativa: acao.justificativaReprazo1 || '' });
@@ -4650,6 +4985,10 @@
                 acao.reprazos = reprazos;
             }
             acao.evidencias = Array.isArray(acao.evidencias) ? acao.evidencias : [];
+            if (typeof acao.before_image_url !== 'string') acao.before_image_url = '';
+            if (typeof acao.after_image_url !== 'string') acao.after_image_url = '';
+            if (typeof acao.implementation_completed_at !== 'string') acao.implementation_completed_at = acao.dataConclusao || '';
+            if (typeof acao.implementation_completed_by !== 'string') acao.implementation_completed_by = '';
             return acao;
         }
 
@@ -4782,6 +5121,11 @@
             }
             state.rncs[rncIndex].d3.etapaConcluida = true;
             state.rncs[rncIndex].d3.dataConclusao = new Date().toISOString();
+            registrarAuditoriaAdmin('EDICAO', 'Etapa D3 concluída com dados de contenção e evidência.', {
+                modulo: 'Fase D3',
+                referencia: state.rncs[rncIndex].numero,
+                tipoAcao: 'EDICAO'
+            });
             const indiceFaseAtual = phases.findIndex(p => p.id === 'd3');
             const proximaFase = (indiceFaseAtual >= 0 && indiceFaseAtual < phases.length - 1) ? phases[indiceFaseAtual + 1] : null;
             if (proximaFase) {
@@ -4853,11 +5197,29 @@
                     status: acaoExistente?.status || 'ABERTA',
                     reprazos: acaoExistente?.reprazos || [],
                     evidencias: acaoExistente?.evidencias || [],
+                    before_image_url: acaoExistente?.before_image_url || '',
+                    after_image_url: acaoExistente?.after_image_url || '',
+                    implementation_completed_at: acaoExistente?.implementation_completed_at || '',
+                    implementation_completed_by: acaoExistente?.implementation_completed_by || '',
                     dataConclusao: acaoExistente?.dataConclusao || ''
                 };
                 const idxAcao = state.rncs[rncIndex].d5.listaAcoes.findIndex(acao => acao.id === payload.id);
                 if (idxAcao >= 0) state.rncs[rncIndex].d5.listaAcoes[idxAcao] = payload;
                 else state.rncs[rncIndex].d5.listaAcoes.push(payload);
+                const responsavelAnterior = acaoExistente ? (getPessoaById(acaoExistente.responsavelId)?.nome || '-') : '-';
+                const responsavelAtual = getPessoaById(payload.responsavelId)?.nome || '-';
+                const acaoTipoLog = acaoExistente ? 'EDICAO' : 'INCLUSAO';
+                const detalhesAcao = [
+                    `Ação corretiva "${payload.descricao}"`,
+                    `Responsável: ${responsavelAtual}`,
+                    `Prazo: ${formatDateSafe(payload.prazoPrincipal)}`
+                ];
+                if (acaoExistente && responsavelAnterior !== responsavelAtual) detalhesAcao.push(`Responsável anterior: ${responsavelAnterior}`);
+                registrarAuditoriaAdmin(acaoTipoLog, detalhesAcao.join(' • '), {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: acaoTipoLog
+                });
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
@@ -4890,7 +5252,7 @@
                 <div class="modal-content" style="max-width: 780px;" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <h2 class="modal-title">Implementação da Ação</h2>
-                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                        <button class="modal-close" id="d6-implementacao-close-btn">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="card" style="padding:1rem; margin-bottom:1rem;">
@@ -4910,27 +5272,94 @@
                                 <input type="text" id="d6-acao-reprazo-just" placeholder="${canManageDeadlines ? 'Obrigatória ao aplicar re-prazo' : 'Somente ADMIN pode alterar re-prazo'}" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Anexo de Evidências da Implementação</label>
-                            <input type="file" id="d6-acao-evidencia-file" accept=".pdf,image/*">
-                            ${acao.evidencias?.length ? `<div style="margin-top:0.5rem; color:#475569; font-size:0.8125rem;">Evidências anexadas: ${acao.evidencias.length}</div>` : ''}
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
+                            <div class="card" style="padding:0.875rem; border:2px solid #dc2626;">
+                                <h4 style="font-weight:700; margin-bottom:0.5rem; color:#b91c1c;">Situação ANTES da Implementação</h4>
+                                <p style="font-size:0.8125rem; color:#475569; margin-bottom:0.5rem;">Evidência visual da condição antes da implementação da ação.</p>
+                                <input type="file" id="d6-acao-before-file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                                <div id="d6-before-file-name" style="margin-top:0.5rem; font-size:0.8125rem; color:#64748b;">${acao.before_image_url ? 'Imagem ANTES anexada.' : 'Sem imagem ANTES anexada.'}</div>
+                                <img id="d6-before-preview" src="${acao.before_image_url || ''}" alt="Pré-visualização ANTES" style="margin-top:0.5rem; width:100%; max-height:180px; object-fit:contain; border:1px solid #fecaca; border-radius:4px; background:#fff; ${acao.before_image_url ? '' : 'display:none;'}">
+                            </div>
+                            <div class="card" style="padding:0.875rem; border:2px solid #16a34a;">
+                                <h4 style="font-weight:700; margin-bottom:0.5rem; color:#166534;">Situação APÓS a Implementação</h4>
+                                <p style="font-size:0.8125rem; color:#475569; margin-bottom:0.5rem;">Evidência visual após a implementação da ação corretiva.</p>
+                                <input type="file" id="d6-acao-after-file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                                <div id="d6-after-file-name" style="margin-top:0.5rem; font-size:0.8125rem; color:#64748b;">${acao.after_image_url ? 'Imagem APÓS anexada.' : 'Sem imagem APÓS anexada.'}</div>
+                                <img id="d6-after-preview" src="${acao.after_image_url || ''}" alt="Pré-visualização APÓS" style="margin-top:0.5rem; width:100%; max-height:180px; object-fit:contain; border:1px solid #bbf7d0; border-radius:4px; background:#fff; ${acao.after_image_url ? '' : 'display:none;'}">
+                            </div>
                         </div>
                         <div style="display:flex; gap:1rem; flex-wrap:wrap;">
                             <button type="button" class="btn btn-secondary" id="d6-salvar-acao-btn">Salvar Alterações</button>
-                            <button type="button" class="btn btn-success" id="d6-concluir-acao-btn" ${acao.evidencias?.length ? '' : 'disabled'}>Concluir Ação</button>
+                            <button type="button" class="btn btn-success" id="d6-concluir-acao-btn" title="Anexe as evidências de antes e depois para concluir a ação." ${(acao.before_image_url && acao.after_image_url) ? '' : 'disabled'}>Concluir Ação</button>
                         </div>
                     </div>
                 </div>
             `;
-            overlay.onclick = (e) => e.target === overlay && overlay.remove();
-            document.body.appendChild(overlay);
-
-            const evidenciaInput = overlay.querySelector('#d6-acao-evidencia-file');
-            const concluirBtn = overlay.querySelector('#d6-concluir-acao-btn');
-            const atualizarEstadoConcluir = () => {
-                concluirBtn.disabled = !(acao.evidencias?.length || evidenciaInput.files?.length);
+            const closeOverlay = () => {
+                if (beforeObjectUrl) URL.revokeObjectURL(beforeObjectUrl);
+                if (afterObjectUrl) URL.revokeObjectURL(afterObjectUrl);
+                overlay.remove();
             };
-            evidenciaInput.onchange = atualizarEstadoConcluir;
+            overlay.onclick = (e) => e.target === overlay && closeOverlay();
+            document.body.appendChild(overlay);
+            overlay.querySelector('#d6-implementacao-close-btn').onclick = closeOverlay;
+
+            const beforeInput = overlay.querySelector('#d6-acao-before-file');
+            const afterInput = overlay.querySelector('#d6-acao-after-file');
+            const beforeName = overlay.querySelector('#d6-before-file-name');
+            const afterName = overlay.querySelector('#d6-after-file-name');
+            const beforePreview = overlay.querySelector('#d6-before-preview');
+            const afterPreview = overlay.querySelector('#d6-after-preview');
+            const concluirBtn = overlay.querySelector('#d6-concluir-acao-btn');
+            const extensoesPermitidas = ['jpg', 'jpeg', 'png'];
+            const mimesPermitidos = ['image/jpeg', 'image/png'];
+            let beforeObjectUrl = '';
+            let afterObjectUrl = '';
+            const arquivoImagemValido = (arquivo) => {
+                if (!arquivo) return false;
+                const ext = String(arquivo.name || '').split('.').pop().toLowerCase();
+                const mimeValido = !!arquivo.type && mimesPermitidos.includes(String(arquivo.type).toLowerCase());
+                return extensoesPermitidas.includes(ext) && mimeValido;
+            };
+            const atualizarEstadoConcluir = () => {
+                const temAntes = !!acao.before_image_url || !!beforeInput.files?.length;
+                const temDepois = !!acao.after_image_url || !!afterInput.files?.length;
+                concluirBtn.disabled = !(temAntes && temDepois);
+            };
+            beforeInput.onchange = () => {
+                if (beforeInput.files?.length && !arquivoImagemValido(beforeInput.files[0])) {
+                    alert('A imagem ANTES deve ser do tipo .jpg, .jpeg ou .png.');
+                    beforeInput.value = '';
+                    return;
+                }
+                if (beforeInput.files?.length) {
+                    if (beforeObjectUrl) URL.revokeObjectURL(beforeObjectUrl);
+                    beforeObjectUrl = URL.createObjectURL(beforeInput.files[0]);
+                    beforePreview.src = beforeObjectUrl;
+                    beforePreview.style.display = 'block';
+                    beforeName.textContent = `Arquivo selecionado: ${beforeInput.files[0].name}`;
+                } else {
+                    beforeName.textContent = acao.before_image_url ? 'Imagem ANTES anexada.' : 'Sem imagem ANTES anexada.';
+                }
+                atualizarEstadoConcluir();
+            };
+            afterInput.onchange = () => {
+                if (afterInput.files?.length && !arquivoImagemValido(afterInput.files[0])) {
+                    alert('A imagem APÓS deve ser do tipo .jpg, .jpeg ou .png.');
+                    afterInput.value = '';
+                    return;
+                }
+                if (afterInput.files?.length) {
+                    if (afterObjectUrl) URL.revokeObjectURL(afterObjectUrl);
+                    afterObjectUrl = URL.createObjectURL(afterInput.files[0]);
+                    afterPreview.src = afterObjectUrl;
+                    afterPreview.style.display = 'block';
+                    afterName.textContent = `Arquivo selecionado: ${afterInput.files[0].name}`;
+                } else {
+                    afterName.textContent = acao.after_image_url ? 'Imagem APÓS anexada.' : 'Sem imagem APÓS anexada.';
+                }
+                atualizarEstadoConcluir();
+            };
             atualizarEstadoConcluir();
 
             const aplicarAtualizacoes = async () => {
@@ -4968,17 +5397,25 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
-                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`);
+                    registrarAuditoriaAdmin('EDICAO', `Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`, { modulo: 'Ação Corretiva', referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 }
-                if (evidenciaInput.files?.length) {
-                    const arquivo = evidenciaInput.files[0];
-                    const base64 = await lerArquivoBase64(arquivo, 'evidência da ação D6');
-                    if (base64 === null) {
-                        alert('Falha ao processar evidência. Tente novamente.');
+                if (beforeInput.files?.length) {
+                    const arquivoAntes = beforeInput.files[0];
+                    const base64Antes = await lerArquivoBase64(arquivoAntes, 'evidência ANTES da ação D6');
+                    if (base64Antes === null) {
+                        alert('Falha ao processar imagem ANTES. Tente novamente.');
                         return false;
                     }
-                    acao.evidencias = acao.evidencias || [];
-                    acao.evidencias.push({ nome: arquivo.name, conteudo: base64, data: new Date().toISOString() });
+                    acao.before_image_url = base64Antes;
+                }
+                if (afterInput.files?.length) {
+                    const arquivoDepois = afterInput.files[0];
+                    const base64Depois = await lerArquivoBase64(arquivoDepois, 'evidência APÓS da ação D6');
+                    if (base64Depois === null) {
+                        alert('Falha ao processar imagem APÓS. Tente novamente.');
+                        return false;
+                    }
+                    acao.after_image_url = base64Depois;
                 }
                 return true;
             };
@@ -4990,25 +5427,39 @@
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 await salvarRNCNoFirebase(state.selectedRNC);
-                overlay.remove();
+                registrarAuditoriaAdmin('EDICAO', `Ação corretiva "${acao.descricao || '-'}" atualizada na implementação D6.`, {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
+                closeOverlay();
                 render();
             };
 
             concluirBtn.onclick = async () => {
-                if (!acao.evidencias?.length && !evidenciaInput.files?.length) {
-                    alert('Anexe pelo menos uma evidência para concluir a ação.');
+                const possuiAntes = !!acao.before_image_url || !!beforeInput.files?.length;
+                const possuiDepois = !!acao.after_image_url || !!afterInput.files?.length;
+                if (!possuiAntes || !possuiDepois) {
+                    alert('Anexe as evidências ANTES e APÓS para concluir a ação.');
                     return;
                 }
                 const ok = await aplicarAtualizacoes();
                 if (!ok) return;
                 acao.status = 'CONCLUIDA';
                 acao.dataConclusao = new Date().toISOString();
+                acao.implementation_completed_at = acao.dataConclusao;
+                acao.implementation_completed_by = String(state.currentUser?.id || state.currentUser?.email || state.currentUser?.name || '');
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
-                overlay.remove();
+                registrarAuditoriaAdmin('EDICAO', `Conclusão da Implementação D6 da ação corretiva "${acao.descricao || '-'}" com evidências ANTES e APÓS anexadas.`, {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
+                closeOverlay();
                 render();
             };
         }
@@ -5085,6 +5536,20 @@
                 const idxAcao = acoes.findIndex(acao => acao.id === payload.id);
                 if (idxAcao >= 0) acoes[idxAcao] = payload;
                 else acoes.push(payload);
+                const responsavelAnterior = acaoExistente ? (getPessoaById(acaoExistente.responsavelId)?.nome || '-') : '-';
+                const responsavelAtual = getPessoaById(payload.responsavelId)?.nome || '-';
+                const acaoTipoLog = acaoExistente ? 'EDICAO' : 'INCLUSAO';
+                const detalhesAcao = [
+                    `Ação preventiva "${payload.descricao}"`,
+                    `Responsável: ${responsavelAtual}`,
+                    `Prazo: ${formatDateSafe(payload.prazoPrincipal)}`
+                ];
+                if (acaoExistente && responsavelAnterior !== responsavelAtual) detalhesAcao.push(`Responsável anterior: ${responsavelAnterior}`);
+                registrarAuditoriaAdmin(acaoTipoLog, detalhesAcao.join(' • '), {
+                    modulo: 'Ação Preventiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: acaoTipoLog
+                });
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
@@ -5198,7 +5663,7 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
-                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação preventiva "${acao.descricao || '-'}"`);
+                    registrarAuditoriaAdmin('EDICAO', `Re-prazo ${numero} aplicado na ação preventiva "${acao.descricao || '-'}"`, { modulo: 'Ação Preventiva', referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 }
                 if (evidenciaInput.files?.length) {
                     const arquivo = evidenciaInput.files[0];
@@ -5238,6 +5703,11 @@
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
+                registrarAuditoriaAdmin('EDICAO', `Ação preventiva "${acao.descricao || '-'}" concluída na D7.`, {
+                    modulo: 'Ação Preventiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
                 overlay.remove();
                 render();
             };
@@ -5281,10 +5751,130 @@
             sincronizarFluxo8D(state.selectedRNC);
             if (concluir) state.activeTab = state.selectedRNC.faseAtual;
             const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+            registrarAuditoriaAdmin('EDICAO', concluir ? 'D8 concluído e RNC encerrada.' : 'D8 atualizado.', {
+                modulo: 'Fase D8',
+                referencia: rnc.numero,
+                tipoAcao: 'EDICAO'
+            });
             alert(salvoNoFirebase
                 ? (concluir ? 'D8 concluído e 8D encerrado com sucesso!' : 'D8 salvo com sucesso!')
                 : (concluir ? 'D8 concluído localmente. Firebase indisponível.' : 'D8 salvo localmente. Firebase indisponível.'));
             render();
+        }
+
+        function canConfirmDeleteRNC(reason, accepted) {
+            return String(reason || '').trim().length >= MIN_DELETE_REASON_LENGTH && !!accepted;
+        }
+
+        function abrirModalExcluirRNC() {
+            if (!isCurrentUserAdmin()) {
+                alert('Apenas ADMIN pode excluir RNC.');
+                return;
+            }
+            const rnc = state.selectedRNC;
+            if (!rnc) return;
+            if (isRncExcluida(rnc)) {
+                alert('Esta RNC já está marcada como excluída.');
+                return;
+            }
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width:700px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title" style="color:#b91c1c;">Excluir RNC – ação de bloqueio operacional</h2>
+                        <button class="modal-close" type="button" data-close-delete-rnc>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="margin-bottom:0.75rem;">
+                            Esta ação marcará a RNC <strong>${escapeHtml(rnc.numero)}</strong> – <strong>${escapeHtml(rnc.cliente)}</strong> como excluída para operação.
+                        </p>
+                        <p style="margin-bottom:1rem; color:#7f1d1d;">
+                            A RNC ficará oculta das visões padrão, mantendo histórico e anexos para auditoria. Deseja continuar?
+                        </p>
+                        <div class="form-group">
+                            <label for="deleteRncReason">Motivo da exclusão <span style="color:#dc2626;">*</span></label>
+                            <textarea id="deleteRncReason" rows="4" placeholder="Informe o motivo da exclusão (mínimo de ${MIN_DELETE_REASON_LENGTH} caracteres)"></textarea>
+                        </div>
+                        <label style="display:flex; align-items:center; gap:0.5rem; margin:0.75rem 0;">
+                            <input type="checkbox" id="deleteRncConfirmCheck">
+                            Estou ciente de que esta ação não poderá ser desfeita
+                        </label>
+                        <p id="deleteRncFeedback" style="display:none; margin-top:0.5rem; color:#dc2626; font-size:0.875rem;"></p>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; padding:1rem 1.5rem; border-top:1px solid #e2e8f0;">
+                        <button type="button" class="btn btn-secondary" data-close-delete-rnc>Cancelar</button>
+                        <button type="button" class="btn btn-danger" id="confirmDeleteRncBtn" disabled>Confirmar exclusão</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            const reasonInput = overlay.querySelector('#deleteRncReason');
+            const checkInput = overlay.querySelector('#deleteRncConfirmCheck');
+            const confirmBtn = overlay.querySelector('#confirmDeleteRncBtn');
+            const feedback = overlay.querySelector('#deleteRncFeedback');
+            const close = () => overlay.remove();
+            const updateState = () => {
+                const motivo = String(reasonInput?.value || '').trim();
+                const aceitou = !!checkInput?.checked;
+                confirmBtn.disabled = !canConfirmDeleteRNC(motivo, aceitou);
+            };
+            overlay.querySelectorAll('[data-close-delete-rnc]').forEach(btn => btn.onclick = close);
+            overlay.onclick = (event) => {
+                if (event.target === overlay) close();
+            };
+            reasonInput.oninput = updateState;
+            checkInput.onchange = updateState;
+            confirmBtn.onclick = async () => {
+                const motivo = String(reasonInput.value || '').trim();
+                if (!canConfirmDeleteRNC(motivo, checkInput.checked)) {
+                    if (feedback) {
+                        feedback.style.display = 'block';
+                        feedback.textContent = `Preencha o motivo (mínimo ${MIN_DELETE_REASON_LENGTH} caracteres) e confirme ciência para continuar.`;
+                    }
+                    return;
+                }
+                await excluirRNCSelecionada(motivo);
+                close();
+            };
+        }
+
+        async function excluirRNCSelecionada(motivoExclusao) {
+            if (!isCurrentUserAdmin()) {
+                alert('Apenas ADMIN pode excluir RNC.');
+                return;
+            }
+            const rnc = state.selectedRNC;
+            if (!rnc) return;
+            const rncIndex = state.rncs.findIndex(item => item.id === rnc.id);
+            if (rncIndex === -1) return;
+            const motivo = String(motivoExclusao || '').trim();
+            if (!canConfirmDeleteRNC(motivo, true)) {
+                alert(`Informe um motivo de exclusão com no mínimo ${MIN_DELETE_REASON_LENGTH} caracteres.`);
+                return;
+            }
+
+            const timestamp = new Date().toISOString();
+            state.rncs[rncIndex].status = 'EXCLUIDA';
+            state.rncs[rncIndex].deleted_at = timestamp;
+            state.rncs[rncIndex].deleted_by = state.currentUser?.id || null;
+            state.rncs[rncIndex].deleted_reason = motivo;
+
+            const salvoNoFirebase = await salvarRNCNoFirebase(state.rncs[rncIndex]);
+            registrarMovimentacao({
+                tipoAcao: 'EXCLUSAO',
+                modulo: 'RNC',
+                referencia: state.rncs[rncIndex].numero,
+                descricao: `Exclusão lógica da RNC. Motivo: ${motivo}`,
+                usuario: state.currentUser?.name || '',
+                perfil: state.currentUser?.profile || ''
+            });
+
+            state.currentPage = 'controle';
+            state.selectedRNC = null;
+            render();
+            alert(salvoNoFirebase ? 'RNC excluída com sucesso.' : 'RNC excluída localmente. Falha ao salvar no Firebase agora.');
         }
 
         function isDataUrlImagem(data) {
@@ -5346,12 +5936,19 @@
             return acoes.map((acao, idx) => {
                 const evidencias = acao.evidencias || [];
                 const dataConclusao = extractAndFormatDate(acao.dataConclusao);
+                const possuiAntesDepois = !!acao.before_image_url || !!acao.after_image_url;
                 return `
                     <div class="pdf-action-block">
                         <h4>${escapeHtml(acao.descricao || `${tituloPadrao} ${idx + 1}`)}</h4>
                         <div><strong>Status:</strong> ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</div>
                         <div><strong>Data de conclusão:</strong> ${acao.status === 'CONCLUIDA' ? dataConclusao : 'Não concluída'}</div>
-                        ${evidencias.length ? `
+                        ${possuiAntesDepois ? `
+                            <div class="pdf-image-grid" style="margin-top:6px;">
+                                ${renderImagemOuAnexoRelatorio('Situação ANTES da Implementação', acao.before_image_url, { variant: 'red' })}
+                                ${renderImagemOuAnexoRelatorio('Situação APÓS a Implementação', acao.after_image_url, { variant: 'green' })}
+                            </div>
+                            <div class="pdf-muted">Situação antes da implementação da ação corretiva • Situação após a implementação da ação corretiva.</div>
+                        ` : evidencias.length ? `
                             <div class="pdf-evidence-grid">
                                 ${evidencias.map((ev, eidx) => renderImagemOuAnexoRelatorio(ev.nome || `Evidência ${eidx + 1}`, ev.conteudo)).join('')}
                             </div>
@@ -5751,7 +6348,7 @@
                     state.rncs[rncIndex].prazos[phaseId].reprazo2 = novaData;
                     state.rncs[rncIndex].prazos[phaseId].just2 = just;
                 }
-                registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${num} definido para ${getLabelCurtoFase(phaseId)} em ${formatDateSafe(novaData)}`);
+                registrarAuditoriaAdmin('EDICAO', `Re-prazo ${num} definido para ${getLabelCurtoFase(phaseId)} em ${formatDateSafe(novaData)}`, { modulo: `Fase ${getLabelCurtoFase(phaseId)}`, referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 
                 state.rncs[rncIndex].status = "AT_RISK";
                 state.selectedRNC = state.rncs[rncIndex];
@@ -5829,31 +6426,75 @@
                         initials: (pessoaCadastro?.nome || 'U').split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase()
                     };
                     state.currentUser = baseUser;
+                    registrarMovimentacao({
+                        tipoAcao: 'LOGIN',
+                        modulo: 'Usuários e Segurança',
+                        referencia: baseUser.email,
+                        descricao: 'Acesso ao sistema',
+                        usuario: baseUser.name,
+                        perfil: baseUser.profile
+                    });
                     state.currentPage = 'dashboard';
                     render();
                 };
             }
             
             document.querySelectorAll('.nav-item').forEach(item => {
-                item.onclick = () => {
+                const handleNavSelection = () => {
                     const page = item.dataset.page;
                     if (page === 'logout') {
                         if (confirm('Sair?')) {
+                            registrarMovimentacao({
+                                tipoAcao: 'LOGOUT',
+                                modulo: 'Usuários e Segurança',
+                                referencia: state.currentUser?.email || '',
+                                descricao: 'Saída do sistema'
+                            });
                             state.currentUser = null;
                             state.currentPage = 'login';
+                            state.mobileMenuOpen = false;
                             render();
                         }
                     } else if (page) {
-                        if (page === 'admin' && !isCurrentUserAdmin()) {
+                        if ((page === 'admin' || page === 'movimentacoes') && !isCurrentUserAdmin()) {
                             alert('Acesso restrito ao perfil ADMIN.');
                             return;
                         }
                         state.currentPage = page;
+                        state.mobileMenuOpen = false;
                         render();
                     }
                 };
+                item.onclick = handleNavSelection;
+                item.onkeydown = (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleNavSelection();
+                    }
+                };
             });
-            
+
+            const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+            if (toggleSidebarBtn) {
+                toggleSidebarBtn.onclick = toggleSidebar;
+            }
+
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.onclick = () => {
+                    state.mobileMenuOpen = false;
+                    render();
+                };
+            }
+
+            const mobileSidebarBtn = document.getElementById('mobileSidebarBtn');
+            if (mobileSidebarBtn) {
+                mobileSidebarBtn.onclick = () => {
+                    state.mobileMenuOpen = true;
+                    render();
+                };
+            }
+
             document.querySelectorAll('.rnc-row').forEach(row => {
                 row.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == row.dataset.rncId);
@@ -6170,6 +6811,11 @@
                     };
 
                     state.rncs.push(novaRnc);
+                    registrarAuditoriaAdmin('INCLUSAO', `Nova RNC criada (${novaRnc.numero}) para o cliente ${novaRnc.cliente}.`, {
+                        modulo: 'RNC',
+                        referencia: novaRnc.numero,
+                        tipoAcao: 'INCLUSAO'
+                    });
                     const salvoNoFirebase = await salvarRNCNoFirebase(novaRnc);
                     cadastroRncForm.reset();
                     render();
@@ -6188,6 +6834,26 @@
                     render();
                 };
             });
+
+            const movDataInicio = document.getElementById('movDataInicio');
+            const movDataFim = document.getElementById('movDataFim');
+            const movUsuario = document.getElementById('movUsuario');
+            const movTipoAcao = document.getElementById('movTipoAcao');
+            const movModulo = document.getElementById('movModulo');
+            const movNumeroRnc = document.getElementById('movNumeroRnc');
+            if (movDataInicio && movDataFim && movUsuario && movTipoAcao && movModulo && movNumeroRnc) {
+                const aplicarFiltrosMovimentacoes = () => {
+                    state.movimentacoesFilters.dataInicio = movDataInicio.value;
+                    state.movimentacoesFilters.dataFim = movDataFim.value;
+                    state.movimentacoesFilters.usuario = movUsuario.value;
+                    state.movimentacoesFilters.tipoAcao = movTipoAcao.value;
+                    state.movimentacoesFilters.modulo = movModulo.value;
+                    state.movimentacoesFilters.numeroRnc = movNumeroRnc.value;
+                    render();
+                };
+                [movDataInicio, movDataFim, movUsuario, movTipoAcao, movModulo].forEach(el => el.onchange = aplicarFiltrosMovimentacoes);
+                movNumeroRnc.oninput = aplicarFiltrosMovimentacoes;
+            }
 
             const adminTemplateTipoSelect = document.getElementById('adminTemplateTipoSelect');
             if (adminTemplateTipoSelect) {
@@ -6215,7 +6881,7 @@
                         return;
                     }
                     emailTemplatesBase[key] = { assunto, corpo };
-                    registrarAuditoriaAdmin('Atualização de template', `Template ${tipo} atualizado`);
+                    registrarAuditoriaAdmin('EDICAO', `Template ${tipo} atualizado`, { modulo: 'Template de E-mail', referencia: tipo, tipoAcao: 'EDICAO' });
                     if (adminTemplateFeedback) {
                         adminTemplateFeedback.style.display = 'block';
                         adminTemplateFeedback.style.color = '#059669';
@@ -6223,6 +6889,10 @@
                     }
                 };
                 testarTemplateEmailBtn.onclick = () => {
+                    if (!isCurrentUserAdmin()) {
+                        alert('Acesso restrito ao perfil ADMIN.');
+                        return;
+                    }
                     const tipo = state.adminTemplateTipo || 'FASE';
                     const assunto = String(document.getElementById('adminTemplateAssunto')?.value || '').trim();
                     const corpo = String(document.getElementById('adminTemplateCorpo')?.value || '').trim();
@@ -6238,6 +6908,11 @@
                     };
                     const preview = `Assunto: ${aplicarTemplateEmail(assunto, exemplo)}\n\n${aplicarTemplateEmail(corpo, exemplo)}`;
                     alert(preview);
+                    registrarAuditoriaAdmin('ENVIO', `Teste de template ${tipo} executado com dados de exemplo.`, {
+                        modulo: 'Template de E-mail',
+                        referencia: tipo,
+                        tipoAcao: 'ENVIO'
+                    });
                     if (adminTemplateFeedback) {
                         adminTemplateFeedback.style.display = 'block';
                         adminTemplateFeedback.style.color = '#1d4ed8';
@@ -6275,6 +6950,7 @@
             const filtroConclusao = document.getElementById('controleFiltroConclusao');
             const filtroEtapas = document.getElementById('controleFiltroEtapas');
             const filtroBusca = document.getElementById('controleFiltroBusca');
+            const filtroExcluidas = document.getElementById('controleFiltroExcluidas');
             if (filtroStatus && filtroSetor && filtroConclusao && filtroEtapas && filtroBusca) {
                 const aplicarFiltrosControle = () => {
                     state.controleFilters.status = filtroStatus.value;
@@ -6282,6 +6958,7 @@
                     state.controleFilters.conclusao = filtroConclusao.value;
                     state.controleFilters.etapas = filtroEtapas.value;
                     state.controleFilters.busca = filtroBusca.value;
+                    state.controleFilters.showExcluidas = !!filtroExcluidas?.checked;
                     render();
                 };
                 filtroStatus.onchange = aplicarFiltrosControle;
@@ -6289,6 +6966,7 @@
                 filtroConclusao.onchange = aplicarFiltrosControle;
                 filtroEtapas.onchange = aplicarFiltrosControle;
                 filtroBusca.oninput = aplicarFiltrosControle;
+                if (filtroExcluidas) filtroExcluidas.onchange = aplicarFiltrosControle;
             }
 
             document.querySelectorAll('.controle-sort-btn').forEach(btn => {
@@ -6391,7 +7069,7 @@
                     }
                     setUserPassword(usuarioEmail, novaSenha);
                     const pessoaAlvo = pessoasBase.find(pessoa => normalizeEmail(pessoa.email) === usuarioEmail);
-                    registrarAuditoriaAdmin('Troca de senha', `Senha redefinida para ${pessoaAlvo?.nome || 'Usuário'} (id: ${pessoaAlvo?.id || '-'})`);
+                    registrarAuditoriaAdmin('EDICAO', `Senha redefinida para ${pessoaAlvo?.nome || 'Usuário'} (id: ${pessoaAlvo?.id || '-'})`, { modulo: 'Usuários e Segurança', referencia: pessoaAlvo?.email || usuarioEmail, tipoAcao: 'EDICAO' });
                     msg.textContent = `Senha atualizada com sucesso para ${usuarioEmail}.`;
                     msg.style.color = '#059669';
                     segurancaSenhaForm.reset();
@@ -6532,6 +7210,18 @@
         async function initApp() {
             await carregarCadastrosBaseDoFirebase();
             await carregarRNCsDoFirebase();
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && state.mobileMenuOpen) {
+                    state.mobileMenuOpen = false;
+                    render();
+                }
+            });
+            window.addEventListener('resize', () => {
+                if (!isMobileView() && state.mobileMenuOpen) {
+                    state.mobileMenuOpen = false;
+                    render();
+                }
+            });
             render();
         }
 
