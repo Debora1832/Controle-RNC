@@ -2848,7 +2848,7 @@
                 btn.onclick = () => abrirModalFormularioCadastro(btn.dataset.cadastroTipo, btn.dataset.itemId, overlay);
             });
             overlay.querySelectorAll('.btn-excluir-cadastro-item').forEach(btn => {
-                btn.onclick = () => {
+                btn.onclick = async () => {
                     const item = getCadastroItemById(btn.dataset.cadastroTipo, btn.dataset.itemId);
                     if (!item) return;
                     const bloqueio = bloqueioExclusaoCadastro(btn.dataset.cadastroTipo, item);
@@ -2862,6 +2862,10 @@
                     if (idx !== -1) {
                         listaBase.splice(idx, 1);
                         registrarAuditoriaAdmin('Exclusão de cadastro base', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`);
+                        const salvoNoFirebase = await salvarCadastrosBaseNoFirebase();
+                        if (!salvoNoFirebase) {
+                            alert('Cadastro atualizado localmente, mas não foi possível salvar no Firebase agora.');
+                        }
                     }
                     overlay.remove();
                     abrirModalListagemCadastro(btn.dataset.cadastroTipo);
@@ -2971,11 +2975,43 @@
                     listaBase.push({ id: nextId, ...payload });
                     registrarAuditoriaAdmin('Novo cadastro base', `${config.titulo}: ${payload.nome || nextId}`);
                 }
+                await salvarCadastrosBaseNoFirebase();
                 overlay.remove();
                 if (parentOverlay) parentOverlay.remove();
                 abrirModalListagemCadastro(tipo);
                 render();
             };
+        }
+
+        function salvarCadastrosBaseNoFirebase() {
+            if (!db) return Promise.resolve(false);
+            const payload = {
+                pessoasBase,
+                clientesBase,
+                modosFalhaBase
+            };
+            return db.collection('configuracoes')
+                .doc('cadastros-base')
+                .set(payload, { merge: true })
+                .then(() => true)
+                .catch(error => {
+                    console.warn('Falha ao salvar cadastros base no Firebase:', error);
+                    return false;
+                });
+        }
+
+        async function carregarCadastrosBaseDoFirebase() {
+            if (!db) return;
+            try {
+                const cadastrosBaseDoc = await db.collection('configuracoes').doc('cadastros-base').get();
+                if (!cadastrosBaseDoc.exists) return;
+                const data = cadastrosBaseDoc.data() || {};
+                if (Array.isArray(data.pessoasBase)) pessoasBase = data.pessoasBase;
+                if (Array.isArray(data.clientesBase)) clientesBase = data.clientesBase;
+                if (Array.isArray(data.modosFalhaBase)) modosFalhaBase = data.modosFalhaBase;
+            } catch (error) {
+                console.warn('Falha ao carregar cadastros base do Firebase:', error);
+            }
         }
 
         async function carregarRNCsDoFirebase() {
@@ -6494,6 +6530,7 @@
         }
 
         async function initApp() {
+            await carregarCadastrosBaseDoFirebase();
             await carregarRNCsDoFirebase();
             render();
         }
