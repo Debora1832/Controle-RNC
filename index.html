@@ -1547,6 +1547,8 @@
         const users = [
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", profile: "ADMIN", planta: "Matriz", initials: "DS" }
         ];
+        const SENHA_PADRAO_SISTEMA = 'Magius@123';
+        const userPasswords = { "debora@empresa.com": SENHA_PADRAO_SISTEMA };
 
         let pessoasBase = [
             { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "lucas.santos@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
@@ -1594,6 +1596,22 @@
                 report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>'
             };
             return icons[type] || icons.chart;
+        }
+
+        function normalizeEmail(email) {
+            return String(email || '').trim().toLowerCase();
+        }
+
+        function getUserPassword(email) {
+            const emailNormalizado = normalizeEmail(email);
+            if (!emailNormalizado) return '';
+            return userPasswords[emailNormalizado] || SENHA_PADRAO_SISTEMA;
+        }
+
+        function setUserPassword(email, senha) {
+            const emailNormalizado = normalizeEmail(email);
+            if (!emailNormalizado) return;
+            userPasswords[emailNormalizado] = String(senha || '');
         }
 
         function escapeHtml(value) {
@@ -3050,7 +3068,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Senha</label>
-                                <input type="password" value="123" required>
+                                <input type="password" autocomplete="current-password" required>
                             </div>
                             <button type="submit" class="btn btn-primary" style="width: 100%;">Acessar</button>
                         </form>
@@ -3078,7 +3096,7 @@
                         </div>
                         ${isCurrentUserAdmin() ? `
                             <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin">
-                                <span>Admin</span>
+                                <span>Cadastro Base</span>
                             </div>
                         ` : ''}
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
@@ -3202,6 +3220,15 @@
 
         function renderPerfilModal() {
             if (!state.perfilModalAberto || !state.currentUser) return '';
+            const podeGerenciarSenha = isCurrentUserAdmin();
+            const usuariosSenha = pessoasBase
+                .filter(pessoa => normalizeEmail(pessoa.email))
+                .map(pessoa => ({ email: normalizeEmail(pessoa.email), nome: pessoa.nome }))
+                .filter((pessoa, idx, arr) => arr.findIndex(item => item.email === pessoa.email) === idx);
+            const emailAtual = normalizeEmail(state.currentUser.email);
+            if (emailAtual && !usuariosSenha.some(usuario => usuario.email === emailAtual)) {
+                usuariosSenha.unshift({ email: emailAtual, nome: state.currentUser.name });
+            }
             return `
                 <div class="modal-overlay active" id="perfilModal">
                     <div class="modal-content" style="max-width: 620px;">
@@ -3215,7 +3242,7 @@
                         <div class="modal-body">
                             <div class="modal-tabs">
                                 <button type="button" class="modal-tab profile-modal-tab ${state.perfilAbaAtiva === 'perfil' ? 'active' : ''}" data-perfil-tab="perfil">Perfil</button>
-                                <button type="button" class="modal-tab profile-modal-tab ${state.perfilAbaAtiva === 'seguranca' ? 'active' : ''}" data-perfil-tab="seguranca">Segurança / Senha</button>
+                                ${podeGerenciarSenha ? `<button type="button" class="modal-tab profile-modal-tab ${state.perfilAbaAtiva === 'seguranca' ? 'active' : ''}" data-perfil-tab="seguranca">Segurança / Senha</button>` : ''}
                             </div>
                             <div class="tab-content ${state.perfilAbaAtiva === 'perfil' ? 'active' : ''}">
                                 <div class="card" style="margin-bottom:0;">
@@ -3226,22 +3253,32 @@
                                 </div>
                             </div>
                             <div class="tab-content ${state.perfilAbaAtiva === 'seguranca' ? 'active' : ''}">
-                                <form id="segurancaSenhaForm">
-                                    <div class="form-group">
-                                        <label>Senha atual</label>
-                                        <input type="password" name="senhaAtual" required>
+                                ${podeGerenciarSenha ? `
+                                    <form id="segurancaSenhaForm">
+                                        <div class="form-group">
+                                            <label>Usuário</label>
+                                            <select name="usuarioEmail" required>
+                                                ${usuariosSenha.map(usuario => `
+                                                    <option value="${escapeHtml(usuario.email)}" ${usuario.email === emailAtual ? 'selected' : ''}>${escapeHtml(usuario.nome)} (${escapeHtml(usuario.email)})</option>
+                                                `).join('')}
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Nova senha</label>
+                                            <input type="password" name="novaSenha" minlength="8" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Confirmar nova senha</label>
+                                            <input type="password" name="confirmarNovaSenha" minlength="8" required>
+                                        </div>
+                                        <p id="segurancaSenhaMsg" style="font-size:0.875rem; margin-bottom:0.75rem; color:#64748b;"></p>
+                                        <button type="submit" class="btn btn-primary">Atualizar senha do usuário</button>
+                                    </form>
+                                ` : `
+                                    <div class="card" style="margin-bottom:0;">
+                                        <p style="color:#64748b;">A gestão de senha é restrita ao perfil ADMIN.</p>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Nova senha</label>
-                                        <input type="password" name="novaSenha" minlength="8" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Confirmar nova senha</label>
-                                        <input type="password" name="confirmarNovaSenha" minlength="8" required>
-                                    </div>
-                                    <p id="segurancaSenhaMsg" style="font-size:0.875rem; margin-bottom:0.75rem; color:#64748b;"></p>
-                                    <button type="submit" class="btn btn-primary">Atualizar senha</button>
-                                </form>
+                                `}
                             </div>
                         </div>
                     </div>
@@ -3809,7 +3846,7 @@
         function renderAdmin() {
             if (!isCurrentUserAdmin()) {
                 return `
-                    <h1 class="page-title">Administração</h1>
+                    <h1 class="page-title">Cadastro Base</h1>
                     <div class="card">
                         <p style="color:#475569;">Acesso restrito. Apenas usuários com perfil ADMIN podem visualizar esta área.</p>
                     </div>
@@ -3828,7 +3865,7 @@
             };
             const templateAtual = getTemplateEscalonamento(state.adminTemplateTipo || 'FASE');
             return `
-                <h1 class="page-title">Administração</h1>
+                <h1 class="page-title">Cadastro Base</h1>
                 <div class="card">
                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                         ${abas.map(aba => `
@@ -4171,6 +4208,7 @@
         function renderPhaseContent(rnc, phase) {
             const prazo = rnc.prazos[phase.id];
             const canReprazo = ['d3', 'd4'].includes(phase.id);
+            const canManageDeadlines = isCurrentUserAdmin();
             
             let content = `
                 <div class="d8-section ${rnc.faseAtual === phase.id ? 'active' : ''}">
@@ -4555,7 +4593,7 @@
             content += `
                 <div style="display: flex; gap: 1rem; margin-top: 2rem;">
                     ${!['d1', 'd2', 'd3', 'd5', 'd6', 'd7', 'd8'].includes(phase.id) ? `<button class="btn btn-success" onclick="salvarFase('${phase.id}')">Salvar ${phase.name}</button>` : ''}
-                    ${canReprazo && !prazo.reprazo2 ? `
+                    ${canReprazo && canManageDeadlines && !prazo.reprazo2 ? `
                         <button class="btn btn-warning" onclick="solicitarReprazo('${phase.id}', ${prazo.reprazo1 ? 2 : 1})">
                             Solicitar ${prazo.reprazo1 ? 'Re-prazo 2' : 'Re-prazo 1'}
                         </button>
@@ -4808,6 +4846,7 @@
             if (acaoIndex === -1) return;
             const acao = normalizeAcaoD5(acoes[acaoIndex]);
             const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+            const canManageDeadlines = isCurrentUserAdmin();
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay active';
             overlay.style.zIndex = '1003';
@@ -4828,11 +4867,11 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Novo Re-prazo</label>
-                                <input type="date" id="d6-acao-reprazo-data">
+                                <input type="date" id="d6-acao-reprazo-data" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                             <div class="form-group">
                                 <label>Justificativa do Re-prazo</label>
-                                <input type="text" id="d6-acao-reprazo-just" placeholder="Obrigatória ao aplicar re-prazo">
+                                <input type="text" id="d6-acao-reprazo-just" placeholder="${canManageDeadlines ? 'Obrigatória ao aplicar re-prazo' : 'Somente ADMIN pode alterar re-prazo'}" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                         </div>
                         <div class="form-group">
@@ -4861,6 +4900,10 @@
             const aplicarAtualizacoes = async () => {
                 const reprazoData = overlay.querySelector('#d6-acao-reprazo-data').value;
                 const reprazoJust = overlay.querySelector('#d6-acao-reprazo-just').value.trim();
+                if (reprazoData && !canManageDeadlines) {
+                    alert('Apenas usuários ADMIN podem alterar prazos e re-prazos.');
+                    return false;
+                }
                 if (reprazoData && !reprazoJust) {
                     alert('Justificativa é obrigatória para aplicar re-prazo.');
                     return false;
@@ -4889,6 +4932,7 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
+                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`);
                 }
                 if (evidenciaInput.files?.length) {
                     const arquivo = evidenciaInput.files[0];
@@ -5029,6 +5073,7 @@
             if (acaoIndex === -1) return;
             const acao = normalizeAcaoD7(acoes[acaoIndex]);
             const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+            const canManageDeadlines = isCurrentUserAdmin();
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay active';
             overlay.style.zIndex = '1003';
@@ -5050,11 +5095,11 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label>Novo Re-prazo</label>
-                                <input type="date" id="d7-acao-reprazo-data">
+                                <input type="date" id="d7-acao-reprazo-data" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                             <div class="form-group">
                                 <label>Justificativa do Re-prazo</label>
-                                <input type="text" id="d7-acao-reprazo-just" placeholder="Obrigatória ao aplicar re-prazo">
+                                <input type="text" id="d7-acao-reprazo-just" placeholder="${canManageDeadlines ? 'Obrigatória ao aplicar re-prazo' : 'Somente ADMIN pode alterar re-prazo'}" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                         </div>
                         <div class="form-group">
@@ -5085,6 +5130,10 @@
             const aplicarAtualizacoes = async () => {
                 const reprazoData = overlay.querySelector('#d7-acao-reprazo-data').value;
                 const reprazoJust = overlay.querySelector('#d7-acao-reprazo-just').value.trim();
+                if (reprazoData && !canManageDeadlines) {
+                    alert('Apenas usuários ADMIN podem alterar prazos e re-prazos.');
+                    return false;
+                }
                 if (reprazoData && !reprazoJust) {
                     alert('Justificativa é obrigatória para aplicar re-prazo.');
                     return false;
@@ -5113,6 +5162,7 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
+                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação preventiva "${acao.descricao || '-'}"`);
                 }
                 if (evidenciaInput.files?.length) {
                     const arquivo = evidenciaInput.files[0];
@@ -5588,6 +5638,10 @@
         }
 
         function solicitarReprazo(phaseId, num) {
+            if (!isCurrentUserAdmin()) {
+                alert('Apenas usuários ADMIN podem alterar prazos e re-prazos.');
+                return;
+            }
             const phase = phases.find(p => p.id === phaseId);
             const overlay = document.createElement('div');
             overlay.className = 'modal-overlay active';
@@ -5661,6 +5715,7 @@
                     state.rncs[rncIndex].prazos[phaseId].reprazo2 = novaData;
                     state.rncs[rncIndex].prazos[phaseId].just2 = just;
                 }
+                registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${num} definido para ${getLabelCurtoFase(phaseId)} em ${formatDateSafe(novaData)}`);
                 
                 state.rncs[rncIndex].status = "AT_RISK";
                 state.selectedRNC = state.rncs[rncIndex];
@@ -5707,9 +5762,27 @@
                 loginForm.onsubmit = (e) => {
                     e.preventDefault();
                     const emailInput = loginForm.querySelector('input[type="email"]');
+                    const senhaInput = loginForm.querySelector('input[type="password"]');
                     const emailInformado = String(emailInput?.value || '').trim().toLowerCase();
+                    const senhaInformada = String(senhaInput?.value || '');
+                    if (!senhaInformada) {
+                        alert('Informe a senha para acessar.');
+                        return;
+                    }
                     const usuarioSistema = users.find(user => String(user.email || '').toLowerCase() === emailInformado);
                     const pessoaCadastro = pessoasBase.find(pessoa => String(pessoa.email || '').toLowerCase() === emailInformado);
+                    if (!usuarioSistema && !pessoaCadastro) {
+                        alert('Usuário não encontrado.');
+                        return;
+                    }
+                    if (pessoaCadastro && String(pessoaCadastro.status || '').toLowerCase() !== 'ativo') {
+                        alert('Usuário inativo. Procure um administrador.');
+                        return;
+                    }
+                    if (senhaInformada !== getUserPassword(emailInformado)) {
+                        alert('Senha inválida.');
+                        return;
+                    }
                     const baseUser = usuarioSistema || {
                         id: pessoaCadastro?.id || GUEST_USER_ID,
                         name: pessoaCadastro?.nome || 'Usuário',
@@ -6241,14 +6314,22 @@
             if (segurancaSenhaForm) {
                 segurancaSenhaForm.onsubmit = async (event) => {
                     event.preventDefault();
+                    if (!isCurrentUserAdmin()) {
+                        const msg = document.getElementById('segurancaSenhaMsg');
+                        if (msg) {
+                            msg.textContent = 'Apenas usuários ADMIN podem alterar senhas.';
+                            msg.style.color = '#dc2626';
+                        }
+                        return;
+                    }
                     const formData = new FormData(segurancaSenhaForm);
-                    const senhaAtual = String(formData.get('senhaAtual') || '');
+                    const usuarioEmail = normalizeEmail(formData.get('usuarioEmail'));
                     const novaSenha = String(formData.get('novaSenha') || '');
                     const confirmarNovaSenha = String(formData.get('confirmarNovaSenha') || '');
                     const msg = document.getElementById('segurancaSenhaMsg');
                     if (!msg) return;
-                    if (!senhaAtual.trim()) {
-                        msg.textContent = 'Informe a senha atual.';
+                    if (!usuarioEmail) {
+                        msg.textContent = 'Selecione um usuário para alterar senha.';
                         msg.style.color = '#dc2626';
                         return;
                     }
@@ -6267,12 +6348,15 @@
                         msg.style.color = '#dc2626';
                         return;
                     }
-                    if (senhaAtual === novaSenha) {
+                    if (getUserPassword(usuarioEmail) === novaSenha) {
                         msg.textContent = 'A nova senha deve ser diferente da senha atual.';
                         msg.style.color = '#dc2626';
                         return;
                     }
-                    msg.textContent = 'Senha validada. Para concluir a alteração, integre com seu provedor de autenticação.';
+                    setUserPassword(usuarioEmail, novaSenha);
+                    const pessoaAlvo = pessoasBase.find(pessoa => normalizeEmail(pessoa.email) === usuarioEmail);
+                    registrarAuditoriaAdmin('Troca de senha', `Senha redefinida para ${pessoaAlvo?.nome || 'Usuário'} (id: ${pessoaAlvo?.id || '-'})`);
+                    msg.textContent = `Senha atualizada com sucesso para ${usuarioEmail}.`;
                     msg.style.color = '#059669';
                     segurancaSenhaForm.reset();
                 };
