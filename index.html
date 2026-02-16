@@ -635,6 +635,144 @@
         .badge.red { background: #fee2e2; color: #991b1b; }
         .badge.orange { background: #fed7aa; color: #92400e; }
         .badge.purple { background: #ede9fe; color: #6d28d9; }
+
+        /* D6 - IMPLEMENTAÇÃO (REDESIGN) */
+        .d6-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .d6-header-left h3 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+            color: #0f172a;
+        }
+
+        .d6-header-left .d6-deadline {
+            font-size: 0.875rem;
+            color: #475569;
+        }
+
+        .d6-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .d6-metric {
+            padding: 0.85rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .d6-metric .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .d6-metric .value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-top: 0.25rem;
+        }
+
+        .d6-action-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .d6-action-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: #ffffff;
+            padding: 1rem;
+        }
+
+        .d6-action-card.state-done {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .d6-action-card.state-late {
+            border-color: #fecaca;
+            background: #fff7f7;
+        }
+
+        .d6-action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .d6-action-title {
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.25;
+        }
+
+        .d6-action-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            margin-top: 0.6rem;
+            color: #475569;
+            font-size: 0.875rem;
+        }
+
+        .d6-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        .d6-meta-item svg {
+            width: 16px;
+            height: 16px;
+            color: #64748b;
+            flex: 0 0 16px;
+        }
+
+        .d6-evidence-thumbs {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .d6-evidence-thumbs img {
+            width: 56px;
+            height: 56px;
+            object-fit: cover;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+        }
+
+        .d6-action-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 720px) {
+            .d6-summary { grid-template-columns: 1fr; }
+        }
         
         /* BOTÕES */
         .btn {
@@ -4805,21 +4943,92 @@
                 `;
             } else if (phase.id === 'd6') {
                 const acoesD6 = (rnc.d5.listaAcoes || []).map(normalizeAcaoD5);
+                const prazoFaseD6 = getPrazoVigenteEtapa(rnc.prazos?.d6);
+                const hojeISO = new Date().toISOString().slice(0, 10);
+                const prazoD6Date = parseISODate(prazoFaseD6);
+                const hojeDate = parseISODate(hojeISO);
+                const d6EmAtraso = Boolean(prazoD6Date && hojeDate && hojeDate.getTime() > prazoD6Date.getTime())
+                    && acoesD6.some(acao => acao.status !== 'CONCLUIDA');
+                const totalAcoes = acoesD6.length;
+                const concluidas = acoesD6.filter(acao => acao.status === 'CONCLUIDA').length;
+                const pendentes = Math.max(0, totalAcoes - concluidas);
                 content += `
                     <div class="card" style="padding:1rem;">
-                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Ações para Implementação</h4>
+                        <div class="d6-header">
+                            <div class="d6-header-left">
+                                <h3>D6 – Implementação</h3>
+                                <div class="d6-deadline"><strong>Prazo original:</strong> ${prazoFaseD6 ? formatDateSafe(prazoFaseD6) : '—'}</div>
+                            </div>
+                            <div>
+                                <span class="badge ${d6EmAtraso ? 'red' : 'green'}">${d6EmAtraso ? 'Em atraso' : 'Dentro do prazo'}</span>
+                            </div>
+                        </div>
+
+                        <div class="d6-summary">
+                            <div class="d6-metric">
+                                <div class="label">Total de ações</div>
+                                <div class="value">${totalAcoes}</div>
+                            </div>
+                            <div class="d6-metric">
+                                <div class="label">Concluídas</div>
+                                <div class="value">${concluidas}</div>
+                            </div>
+                            <div class="d6-metric">
+                                <div class="label">Pendentes</div>
+                                <div class="value">${pendentes}</div>
+                            </div>
+                        </div>
+
                         ${acoesD6.length === 0 ? `
                             <div style="color:#64748b;">Nenhuma ação cadastrada no D5.</div>
                         ` : `
-                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div class="d6-action-list">
                                 ${acoesD6.map(acao => {
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    const indicador = obterIndicadorPrazoAcao(acao);
                                     const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                                    const reprazoTexto = acao.reprazos?.length ? `Sim / Nº ${acao.reprazos.length}` : 'Não';
+                                    const evidOk = Boolean(acao.before_image_url && acao.after_image_url);
+                                    const isDone = acao.status === 'CONCLUIDA';
+                                    const isLate = !isDone && indicador.className === 'red';
+                                    const stateClass = isDone ? 'state-done' : (isLate ? 'state-late' : '');
+                                    const statusBadge = isDone ? `<span class="badge green">Concluída</span>` : (isLate ? `<span class="badge red">Atrasada</span>` : `<span class="badge orange">Em andamento</span>`);
                                     return `
-                                        <button type="button" class="btn btn-secondary" style="text-align:left; width:100%;" onclick="abrirImplementacaoAcaoD6('${acao.id}')">
-                                            <strong>${escapeHtml(acao.descricao || 'Ação sem descrição')}</strong><br>
-                                            <span style="font-size:0.8125rem; color:#475569;">Responsável: ${escapeHtml(responsavelAcao)} • Prazo vigente: ${formatDateSafe(prazoVigente)} • Status: ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span>
-                                        </button>
+                                        <div class="d6-action-card ${stateClass}">
+                                            <div class="d6-action-header">
+                                                <div>
+                                                    <div class="d6-action-title">${escapeHtml(acao.descricao || 'Ação sem descrição')}</div>
+                                                </div>
+                                                <div>${statusBadge}</div>
+                                            </div>
+                                            <div class="d6-action-meta" aria-label="Detalhes da ação">
+                                                <span class="d6-meta-item" title="Responsável">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                                                    ${escapeHtml(responsavelAcao)}
+                                                </span>
+                                                <span class="d6-meta-item" title="Prazo vigente">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+                                                    ${formatDateSafe(prazoVigente)}
+                                                </span>
+                                                <span class="d6-meta-item" title="Re-prazo">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/></svg>
+                                                    Re-prazo: ${reprazoTexto}
+                                                </span>
+                                                <span class="d6-meta-item" title="Evidências anexadas">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.9-9.9a3.5 3.5 0 1 1 4.95 4.95l-10.6 10.6a2 2 0 0 1-2.83-2.83l9.9-9.9"/></svg>
+                                                    Evidências: ${evidOk ? 'Sim' : 'Não'}
+                                                </span>
+                                            </div>
+                                            ${isDone && evidOk ? `
+                                                <div class="d6-evidence-thumbs" aria-label="Miniaturas de evidência">
+                                                    <img src="${acao.before_image_url}" alt="Situação antes da implementação">
+                                                    <img src="${acao.after_image_url}" alt="Situação após a implementação">
+                                                </div>
+                                            ` : ''}
+                                            <div class="d6-action-actions">
+                                                <button type="button" class="btn btn-primary" style="padding:0.55rem 1rem; font-size:0.875rem;" onclick="abrirImplementacaoAcaoD6('${acao.id}')">Ver / Implementar ação</button>
+                                            </div>
+                                        </div>
                                     `;
                                 }).join('')}
                             </div>
