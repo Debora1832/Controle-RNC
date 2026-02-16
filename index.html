@@ -773,7 +773,138 @@
         @media (max-width: 720px) {
             .d6-summary { grid-template-columns: 1fr; }
         }
-        
+
+        /* D7 - PREVENÇÃO (REDESIGN) */
+        .d7-header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .d7-header-left h3 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+            color: #0f172a;
+        }
+
+        .d7-header-left .d7-deadline {
+            font-size: 0.875rem;
+            color: #475569;
+        }
+
+        .d7-summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .d7-metric {
+            padding: 0.85rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .d7-metric .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .d7-metric .value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-top: 0.25rem;
+        }
+
+        .d7-section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        .d7-action-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .d7-action-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: #ffffff;
+            padding: 1rem;
+        }
+
+        .d7-action-card.state-done {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .d7-action-card.state-late {
+            border-color: #fecaca;
+            background: #fff7f7;
+        }
+
+        .d7-action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .d7-action-title {
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.25;
+        }
+
+        .d7-action-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            margin-top: 0.6rem;
+            color: #475569;
+            font-size: 0.875rem;
+        }
+
+        .d7-meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        .d7-meta-item svg {
+            width: 16px;
+            height: 16px;
+            color: #64748b;
+            flex: 0 0 16px;
+        }
+
+        .d7-action-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 720px) {
+            .d7-summary { grid-template-columns: 1fr; }
+        }
+         
         /* BOTÕES */
         .btn {
             padding: 0.75rem 1.5rem;
@@ -5036,65 +5167,182 @@
                     </div>
                 `;
             } else if (phase.id === 'd7') {
-                const acoesD7 = (rnc.d7.listaAcoes || []).map(normalizeAcaoD7);
+                const acoesD7 = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
+                const prazoFaseD7 = getPrazoVigenteEtapa(rnc.prazos?.d7);
+                const prazoD7Date = parseISODate(prazoFaseD7);
+                const hojeD7 = new Date();
+                hojeD7.setHours(0, 0, 0, 0);
+                let badgePrazoD7 = { className: 'green', label: 'Dentro do prazo' };
+                if (prazoD7Date) {
+                    const diffDias = Math.floor((prazoD7Date.getTime() - hojeD7.getTime()) / 86400000);
+                    if (diffDias < 0) badgePrazoD7 = { className: 'red', label: 'Em atraso' };
+                    else if (diffDias <= 3) badgePrazoD7 = { className: 'orange', label: 'Próximo ao vencimento' };
+                }
+
+                const statsD7 = acoesD7.reduce((acc, acao) => {
+                    acc.total += 1;
+                    if (acao.status === 'CONCLUIDA') acc.concluidas += 1;
+                    else {
+                        const prazo = parseISODate(obterPrazoVigenteAcao(acao));
+                        if (prazo) {
+                            const diffDias = Math.floor((prazo.getTime() - hojeD7.getTime()) / 86400000);
+                            if (diffDias < 0) acc.atraso += 1;
+                            else if (diffDias <= 3) acc.risco += 1;
+                        }
+                    }
+                    return acc;
+                }, { total: 0, concluidas: 0, risco: 0, atraso: 0 });
+                statsD7.pendentes = Math.max(0, statsD7.total - statsD7.concluidas);
+
                 content += `
                     <div class="card" style="padding:1rem; margin-bottom:1rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
-                            <h4 style="font-weight:700;">Ações Preventivas Cadastradas (Controle)</h4>
+                        <div class="d7-header">
+                            <div class="d7-header-left">
+                                <h3>D7 – Prevenção</h3>
+                                <div class="d7-deadline"><strong>Prazo original:</strong> ${prazoFaseD7 ? formatDateSafe(prazoFaseD7) : '—'}</div>
+                            </div>
+                            <div>
+                                <span class="badge ${badgePrazoD7.className}">${badgePrazoD7.label}</span>
+                            </div>
+                        </div>
+
+                        <div class="d7-summary">
+                            <div class="d7-metric">
+                                <div class="label">Total de ações preventivas</div>
+                                <div class="value">${statsD7.total}</div>
+                            </div>
+                            <div class="d7-metric">
+                                <div class="label">Concluídas</div>
+                                <div class="value">${statsD7.concluidas}</div>
+                            </div>
+                            <div class="d7-metric">
+                                <div class="label">Em risco / Próx. vencimento</div>
+                                <div class="value">${statsD7.risco}</div>
+                            </div>
+                            <div class="d7-metric">
+                                <div class="label">Em atraso</div>
+                                <div class="value">${statsD7.atraso}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <div class="d7-section-title">
+                            <h4 style="font-weight:800; margin:0;">Ações Preventivas Cadastradas (Controle)</h4>
                             <button type="button" class="btn btn-primary" onclick="abrirCadastroAcaoD7()">Cadastrar Ação Preventiva</button>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Descrição da Ação Preventiva</th>
-                                    <th>Responsável</th>
-                                    <th>Origem da Prevenção</th>
-                                    <th>Prazo Original</th>
-                                    <th>Último Re-prazo</th>
-                                    <th>Status de Prazo</th>
-                                    <th>Status da Ação</th>
-                                    <th>Re-prazo</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${acoesD7.length === 0 ? `
-                                    <tr><td colspan="9" style="text-align:center; color:#64748b;">Nenhuma ação preventiva cadastrada.</td></tr>
-                                ` : acoesD7.map(acao => {
-                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
-                                    const indicador = obterIndicadorPrazoAcao(acao);
-                                    const ultimoReprazoData = acao.reprazos?.length ? acao.reprazos[acao.reprazos.length - 1]?.data : '';
-                                    return `
-                                        <tr>
-                                            <td>${escapeHtml(acao.descricao || '')}</td>
-                                            <td>${escapeHtml(responsavelAcao)}</td>
-                                            <td>${escapeHtml(acao.origemPrevencao || '-')}</td>
-                                            <td>${formatDateSafe(acao.prazoPrincipal)}</td>
-                                            <td>${ultimoReprazoData ? formatDateSafe(ultimoReprazoData) : '—'}</td>
-                                            <td><span class="badge ${indicador.className === 'red' ? 'red' : (indicador.className === 'orange' ? 'orange' : 'green')}">${indicador.className === 'red' ? 'Em atraso' : (indicador.className === 'orange' ? 'Próximo ao vencimento' : 'Dentro do prazo')}</span></td>
-                                            <td><span class="badge ${acao.status === 'CONCLUIDA' ? 'green' : 'orange'}">${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span></td>
-                                            <td>${acao.reprazos?.length ? `Sim / Nº ${acao.reprazos.length}` : 'Não'}</td>
-                                            <td><button type="button" class="btn btn-secondary" style="padding:0.45rem 0.8rem; font-size:0.8125rem;" onclick="abrirCadastroAcaoD7('${acao.id}')">Editar</button></td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="card" style="padding:1rem;">
-                        <h4 style="font-weight:700; margin-bottom:0.75rem;">Implementação das Ações Preventivas</h4>
+
                         ${acoesD7.length === 0 ? `
-                            <div style="color:#64748b;">Nenhuma ação preventiva para implementação.</div>
+                            <div style="color:#64748b;">Nenhuma ação preventiva cadastrada.</div>
                         ` : `
-                            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div class="d7-action-list">
                                 ${acoesD7.map(acao => {
                                     const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
                                     const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    const prazo = parseISODate(prazoVigente);
+                                    let prazoBadge = { className: 'green', label: 'Dentro do prazo' };
+                                    if (acao.status !== 'CONCLUIDA' && prazo) {
+                                        const diffDias = Math.floor((prazo.getTime() - hojeD7.getTime()) / 86400000);
+                                        if (diffDias < 0) prazoBadge = { className: 'red', label: 'Em atraso' };
+                                        else if (diffDias <= 3) prazoBadge = { className: 'orange', label: 'Próximo ao vencimento' };
+                                    }
+
+                                    const evidOk = Boolean(acao.evidencias?.length);
+                                    const isDone = acao.status === 'CONCLUIDA';
+                                    const isLate = !isDone && prazoBadge.className === 'red';
+                                    const stateClass = isDone ? 'state-done' : (isLate ? 'state-late' : '');
+
+                                    const statusBadge = isDone
+                                        ? `<span class="badge green">Concluída</span>`
+                                        : (evidOk || (acao.reprazos?.length) ? `<span class="badge orange">Em andamento</span>` : `<span class="badge red">Não iniciada</span>`);
+
+                                    const reprazoTexto = acao.reprazos?.length ? `Sim / Nº ${acao.reprazos.length}` : 'Não';
+
                                     return `
-                                        <button type="button" class="btn btn-secondary" style="text-align:left; width:100%;" onclick="abrirImplementacaoAcaoD7('${acao.id}')">
-                                            <strong>${escapeHtml(acao.descricao || 'Ação preventiva sem descrição')}</strong><br>
-                                            <span style="font-size:0.8125rem; color:#475569;">Responsável: ${escapeHtml(responsavelAcao)} • Prazo vigente: ${formatDateSafe(prazoVigente)} • Status: ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</span>
-                                        </button>
+                                        <div class="d7-action-card ${stateClass}">
+                                            <div class="d7-action-header">
+                                                <div class="d7-action-title">${escapeHtml(acao.descricao || 'Ação preventiva sem descrição')}</div>
+                                                <div>${statusBadge}</div>
+                                            </div>
+                                            <div class="d7-action-meta">
+                                                <span class="d7-meta-item" aria-label="Responsável">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                                                    ${escapeHtml(responsavelAcao)}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Origem da prevenção">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2l7 7-7 7-7-7 7-7z"/><path d="M5 9v13h14V9"/></svg>
+                                                    ${escapeHtml(acao.origemPrevencao || '-')}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Prazo original">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+                                                    ${formatDateSafe(acao.prazoPrincipal)}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Re-prazo">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/></svg>
+                                                    Re-prazo: ${reprazoTexto}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Status do prazo">
+                                                    <span class="badge ${prazoBadge.className}">${prazoBadge.label}</span>
+                                                </span>
+                                            </div>
+                                            <div class="d7-action-actions">
+                                                <button type="button" class="btn btn-primary" style="padding:0.55rem 1rem; font-size:0.875rem;" onclick="abrirCadastroAcaoD7('${acao.id}')">Ver / Editar</button>
+                                                <button type="button" class="btn btn-secondary" style="padding:0.55rem 1rem; font-size:0.875rem;" onclick="abrirImplementacaoAcaoD7('${acao.id}')">Implementação</button>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <div class="card" style="padding:1rem;">
+                        <div class="d7-section-title">
+                            <h4 style="font-weight:800; margin:0;">Implementação das Ações Preventivas</h4>
+                        </div>
+
+                        ${acoesD7.length === 0 ? `
+                            <div style="color:#64748b;">Nenhuma ação preventiva para implementação.</div>
+                        ` : `
+                            <div class="d7-action-list">
+                                ${acoesD7.map(acao => {
+                                    const responsavelAcao = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                                    const prazoVigente = obterPrazoVigenteAcao(acao);
+                                    const prazo = parseISODate(prazoVigente);
+                                    const evidOk = Boolean(acao.evidencias?.length);
+                                    const isDone = acao.status === 'CONCLUIDA';
+                                    let statusPrazo = { className: 'green', label: 'Dentro do prazo' };
+                                    if (!isDone && prazo) {
+                                        const diffDias = Math.floor((prazo.getTime() - hojeD7.getTime()) / 86400000);
+                                        if (diffDias < 0) statusPrazo = { className: 'red', label: 'Atrasada' };
+                                        else if (diffDias <= 3) statusPrazo = { className: 'orange', label: 'Em andamento' };
+                                    }
+                                    const statusBadge = isDone ? `<span class="badge green">Concluída</span>` : (statusPrazo.className === 'red' ? `<span class="badge red">Atrasada</span>` : `<span class="badge orange">Em andamento</span>`);
+                                    const stateClass = isDone ? 'state-done' : (statusPrazo.className === 'red' ? 'state-late' : '');
+                                    return `
+                                        <div class="d7-action-card ${stateClass}">
+                                            <div class="d7-action-header">
+                                                <div class="d7-action-title">${escapeHtml(acao.descricao || 'Ação preventiva sem descrição')}</div>
+                                                <div>${statusBadge}</div>
+                                            </div>
+                                            <div class="d7-action-meta">
+                                                <span class="d7-meta-item" aria-label="Responsável">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                                                    ${escapeHtml(responsavelAcao)}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Prazo vigente">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+                                                    ${formatDateSafe(prazoVigente)}
+                                                </span>
+                                                <span class="d7-meta-item" aria-label="Evidências anexadas">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.9-9.9a3.5 3.5 0 1 1 4.95 4.95l-10.6 10.6a2 2 0 0 1-2.83-2.83l9.9-9.9"/></svg>
+                                                    Evidências: ${evidOk ? 'Sim' : 'Não'}
+                                                </span>
+                                            </div>
+                                            <div class="d7-action-actions">
+                                                <button type="button" class="btn btn-primary" style="padding:0.55rem 1rem; font-size:0.875rem;" onclick="abrirImplementacaoAcaoD7('${acao.id}')">Ver / Implementar</button>
+                                            </div>
+                                        </div>
                                     `;
                                 }).join('')}
                             </div>
