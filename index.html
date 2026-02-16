@@ -1284,6 +1284,7 @@
         let state = {
             currentPage: 'login',
             currentUser: null,
+            adminTabAtiva: 'pessoas',
             perfilModalAberto: false,
             perfilAbaAtiva: 'perfil',
             alertsModalAberto: false,
@@ -1505,6 +1506,26 @@
             ]
         };
 
+        const defaultEmailTemplates = {
+            fase: {
+                assunto: 'Escalonamento de fase - {{numero_rnc}}',
+                corpo: 'RNC {{numero_rnc}} / Cliente {{cliente}}.\nFase: {{fase}}.\nResponsável: {{responsavel}}.\nDias em atraso: {{dias_atraso}}.\nRe-prazos da fase: {{quantidade_reprazo}}.\nData de referência: {{data_referencia}}.'
+            },
+            acao: {
+                assunto: 'Escalonamento de ação - {{numero_rnc}}',
+                corpo: 'RNC {{numero_rnc}} / Cliente {{cliente}}.\nAção: {{acao}}.\nResponsável: {{responsavel}}.\nDias em atraso: {{dias_atraso}}.\nRe-prazos da ação: {{quantidade_reprazo}}.\nData de referência: {{data_referencia}}.'
+            },
+            prazoTotal: {
+                assunto: 'Escalonamento de prazo total - {{numero_rnc}}',
+                corpo: 'RNC {{numero_rnc}} ultrapassou o prazo total de 30 dias.\nCliente: {{cliente}}.\nFase atual: {{fase}}.\nResponsável: {{responsavel}}.\nData de referência: {{data_referencia}}.'
+            }
+        };
+
+        let emailTemplatesBase = {
+            ...defaultEmailTemplates
+        };
+        let auditoriaAdmin = [];
+
         // Dados históricos para tendências (últimos 6 meses)
         const historicalData = {
             monthlyRNCs: [
@@ -1524,29 +1545,29 @@
         };
 
         const users = [
-            { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", planta: "Matriz", initials: "DS" }
+            { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", profile: "ADMIN", planta: "Matriz", initials: "DS" }
         ];
 
         let pessoasBase = [
-            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "lucas.santos@empresa.com" },
-            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "ana.costa@empresa.com" },
-            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "debora@empresa.com" },
-            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "marcos.oliveira@empresa.com" },
-            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", emailGerencia: "joana.almeida@empresa.com", email: "pedro.costa@empresa.com" },
-            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", emailGerencia: "rafael.souza@empresa.com", email: "maria.lima@empresa.com" },
-            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "joao.mendes@empresa.com" }
+            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "lucas.santos@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
+            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "ana.costa@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
+            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "debora@empresa.com", perfilAcesso: "ADMIN", status: "Ativo" },
+            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "marcos.oliveira@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
+            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", emailGerencia: "joana.almeida@empresa.com", email: "pedro.costa@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
+            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", emailGerencia: "rafael.souza@empresa.com", email: "maria.lima@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" },
+            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "joao.mendes@empresa.com", perfilAcesso: "USUARIO", status: "Ativo" }
         ];
         let modosFalhaBase = [
-            { id: 1, nome: "Dimensional" },
-            { id: 2, nome: "Acabamento" },
-            { id: 3, nome: "Montagem" }
+            { id: 1, nome: "Dimensional", descricao: "", status: "Ativo" },
+            { id: 2, nome: "Acabamento", descricao: "", status: "Ativo" },
+            { id: 3, nome: "Montagem", descricao: "", status: "Ativo" }
         ];
         let clientesBase = [
-            { id: 1, nome: "AutoParts Brasil", fotoNome: "", fotoConteudo: "" },
-            { id: 2, nome: "Metal Solutions", fotoNome: "", fotoConteudo: "" },
-            { id: 3, nome: "TechParts Ltd", fotoNome: "", fotoConteudo: "" },
-            { id: 4, nome: "Indústria XYZ", fotoNome: "", fotoConteudo: "" },
-            { id: 5, nome: "MegaAuto SA", fotoNome: "", fotoConteudo: "" }
+            { id: 1, nome: "AutoParts Brasil", codigo: "", fotoNome: "", fotoConteudo: "", status: "Ativo" },
+            { id: 2, nome: "Metal Solutions", codigo: "", fotoNome: "", fotoConteudo: "", status: "Ativo" },
+            { id: 3, nome: "TechParts Ltd", codigo: "", fotoNome: "", fotoConteudo: "", status: "Ativo" },
+            { id: 4, nome: "Indústria XYZ", codigo: "", fotoNome: "", fotoConteudo: "", status: "Ativo" },
+            { id: 5, nome: "MegaAuto SA", codigo: "", fotoNome: "", fotoConteudo: "", status: "Ativo" }
         ];
 
         const phases = [
@@ -1690,13 +1711,58 @@
             return pessoasBase.find(pessoa => pessoa.id === Number(id));
         }
 
+        function isRegistroAtivo(item) {
+            return String(item?.status || 'Ativo').toLowerCase() !== 'inativo';
+        }
+
+        function getPessoasAtivas() {
+            return pessoasBase.filter(isRegistroAtivo);
+        }
+
+        function getClientesAtivos() {
+            return clientesBase.filter(isRegistroAtivo);
+        }
+
+        function getModosFalhaAtivos() {
+            return modosFalhaBase.filter(isRegistroAtivo);
+        }
+
+        function isCurrentUserAdmin() {
+            return String(state.currentUser?.profile || '').toUpperCase() === 'ADMIN';
+        }
+
+        function registrarAuditoriaAdmin(acao, detalhe) {
+            auditoriaAdmin.unshift({
+                acao,
+                detalhe,
+                por: state.currentUser?.name || 'Sistema',
+                data: new Date().toISOString()
+            });
+            auditoriaAdmin = auditoriaAdmin.slice(0, MAX_ADMIN_AUDIT_RECORDS);
+        }
+
+        function aplicarTemplateEmail(template, contexto = {}) {
+            return String(template || '').replace(/\{\{([a-z_]+)\}\}/gi, (_, rawKey) => {
+                const key = String(rawKey || '').trim();
+                return escapeHtml(contexto[key] ?? '');
+            });
+        }
+
+        function getTemplateEscalonamento(tipo) {
+            const tipoNorm = String(tipo || '').toUpperCase();
+            const key = tipoNorm.includes('ACAO')
+                ? 'acao'
+                : (tipoNorm === 'PRAZO_TOTAL_RNC' ? 'prazoTotal' : 'fase');
+            return emailTemplatesBase[key] || defaultEmailTemplates[key];
+        }
+
         function getPessoaEmailGerenciaById(id) {
             const pessoa = getPessoaById(id);
             return pessoa?.emailGerencia ? String(pessoa.emailGerencia).trim() : '';
         }
 
         function getPessoasOptions() {
-            return pessoasBase.map(pessoa => `
+            return getPessoasAtivas().map(pessoa => `
                 <option value="${pessoa.id}">${escapeHtml(pessoa.nome)} - ${escapeHtml(pessoa.cargo)} (${escapeHtml(pessoa.setor)} / ${escapeHtml(pessoa.planta)})</option>
             `).join('');
         }
@@ -2354,6 +2420,9 @@
         const LIMITE_NEGOCIACAO_REPRAZO = 2;
         const PESO_CRITICIDADE_ATRASO = 1000;
         const PESO_CRITICIDADE_PRAZO_TOTAL = 500;
+        const MAX_ADMIN_AUDIT_RECORDS = 200;
+        const MAX_ADMIN_AUDIT_DISPLAY = 20;
+        const GUEST_USER_ID = -1;
 
         function existeNumeroRNCDuplicado(numero) {
             const alvo = normalizeNumeroRNC(numero);
@@ -2417,6 +2486,17 @@
             const chave = String(dados.chave || `${tipo}:${origem}`);
             const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === tipo && item?.chave === chave);
             if (!jaEscalonada) {
+                const template = getTemplateEscalonamento(tipo);
+                const contexto = {
+                    numero_rnc: rnc.numero || '',
+                    cliente: rnc.cliente || '',
+                    fase: dados.faseLabel || '',
+                    acao: dados.acaoDescricao || '',
+                    responsavel: dados.responsavel || '',
+                    dias_atraso: String(dados.diasAtraso || ''),
+                    quantidade_reprazo: String(dados.totalReprazosAcao || dados.totalReprazosFase || ''),
+                    data_referencia: formatDateSafe(dados.dataReferencia || getDataReferenciaControle(rnc))
+                };
                 rnc.escalonamentos.push({
                     tipo,
                     origem,
@@ -2428,6 +2508,8 @@
                     responsavel: dados.responsavel || '',
                     emailGerencia: dados.emailGerencia || '',
                     mensagem: dados.mensagem || '',
+                    emailAssunto: aplicarTemplateEmail(template.assunto, contexto),
+                    emailCorpo: aplicarTemplateEmail(template.corpo, contexto),
                     dataRegistro: new Date().toISOString(),
                     totalReprazosFase: Number(dados.totalReprazosFase || 0),
                     totalReprazosAcao: Number(dados.totalReprazosAcao || 0)
@@ -2583,13 +2665,15 @@
                     titulo: 'Pessoas',
                     descricao: 'Base de integrantes para equipes de RNC',
                     fields: [
-                        { key: 'nome', label: 'Nome', type: 'text', required: true },
+                        { key: 'nome', label: 'Nome completo', type: 'text', required: true },
                         { key: 'cargo', label: 'Função / Cargo', type: 'text', required: true },
                         { key: 'setor', label: 'Setor', type: 'text', required: true },
                         { key: 'planta', label: 'Planta', type: 'text', required: true },
                         { key: 'gerente', label: 'Gerente', type: 'text', required: true },
                         { key: 'emailGerencia', label: 'E-mail da Gerência', type: 'email', required: true },
-                        { key: 'email', label: 'E-mail', type: 'email', required: true }
+                        { key: 'email', label: 'E-mail', type: 'email', required: true },
+                        { key: 'perfilAcesso', label: 'Perfil de Acesso', type: 'select', required: true, options: ['USUARIO', 'ADMIN'] },
+                        { key: 'status', label: 'Status', type: 'select', required: true, options: ['Ativo', 'Inativo'] }
                     ]
                 };
             }
@@ -2598,7 +2682,9 @@
                     titulo: 'Modo de Falha',
                     descricao: 'Tipos de falha padronizados para RNC',
                     fields: [
-                        { key: 'nome', label: 'Nome do Modo de Falha', type: 'text', required: true }
+                        { key: 'nome', label: 'Nome do Modo de Falha', type: 'text', required: true },
+                        { key: 'descricao', label: 'Descrição', type: 'text', required: false },
+                        { key: 'status', label: 'Status', type: 'select', required: true, options: ['Ativo', 'Inativo'] }
                     ]
                 };
             }
@@ -2607,6 +2693,8 @@
                 descricao: 'Clientes reutilizáveis nas RNCs',
                 fields: [
                     { key: 'nome', label: 'Nome do Cliente', type: 'text', required: true },
+                    { key: 'codigo', label: 'Código', type: 'text', required: false },
+                    { key: 'status', label: 'Status', type: 'select', required: true, options: ['Ativo', 'Inativo'] },
                     { key: 'fotoConteudo', label: 'Foto', type: 'file', required: true, isImage: true }
                 ]
             };
@@ -2680,6 +2768,10 @@
         }
 
         function abrirModalListagemCadastro(tipo) {
+            if (!isCurrentUserAdmin()) {
+                alert('Acesso restrito ao perfil ADMIN.');
+                return;
+            }
             const config = getCadastroConfig(tipo);
             const lista = getCadastroLista(tipo);
             const overlay = document.createElement('div');
@@ -2749,7 +2841,10 @@
                     if (!confirm(`Deseja excluir "${item.nome}"?`)) return;
                     const listaBase = getCadastroLista(btn.dataset.cadastroTipo);
                     const idx = listaBase.findIndex(x => x.id === item.id);
-                    if (idx !== -1) listaBase.splice(idx, 1);
+                    if (idx !== -1) {
+                        listaBase.splice(idx, 1);
+                        registrarAuditoriaAdmin('Exclusão de cadastro base', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`);
+                    }
                     overlay.remove();
                     abrirModalListagemCadastro(btn.dataset.cadastroTipo);
                     render();
@@ -2758,6 +2853,10 @@
         }
 
         function abrirModalFormularioCadastro(tipo, itemId, parentOverlay) {
+            if (!isCurrentUserAdmin()) {
+                alert('Acesso restrito ao perfil ADMIN.');
+                return;
+            }
             const config = getCadastroConfig(tipo);
             const item = itemId ? getCadastroItemById(tipo, itemId) : null;
             const overlay = document.createElement('div');
@@ -2778,6 +2877,8 @@
                                     <label>${field.label} ${field.required ? '*' : ''}</label>
                                     ${field.type === 'file'
                                         ? `<input type="file" name="${field.key}" accept="image/*" ${field.required && !item?.fotoConteudo ? 'required' : ''}>`
+                                        : field.type === 'select'
+                                            ? `<select name="${field.key}" ${field.required ? 'required' : ''}>${(field.options || []).map(option => `<option value="${escapeHtml(option)}" ${String(item?.[field.key] || '') === String(option) ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}</select>`
                                         : `<input type="${field.type}" name="${field.key}" value="${escapeHtml(item?.[field.key] || '')}" ${field.required ? 'required' : ''}>`
                                     }
                                     ${field.isImage && item?.fotoConteudo ? `<div style="margin-top:0.5rem;"><img src="${item.fotoConteudo}" alt="${escapeHtml(item.nome)}" style="width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;"></div>` : ''}
@@ -2845,10 +2946,12 @@
                         const nomeAnterior = listaBase[idx].nome;
                         listaBase[idx] = { ...listaBase[idx], ...payload };
                         propagarRenomeacaoCadastro(tipo, nomeAnterior, listaBase[idx].nome);
+                        registrarAuditoriaAdmin('Atualização de cadastro base', `${config.titulo}: ${listaBase[idx].nome}`);
                     }
                 } else {
                     const nextId = getNextId(listaBase);
                     listaBase.push({ id: nextId, ...payload });
+                    registrarAuditoriaAdmin('Novo cadastro base', `${config.titulo}: ${payload.nome || nextId}`);
                 }
                 overlay.remove();
                 if (parentOverlay) parentOverlay.remove();
@@ -2905,6 +3008,9 @@
         function render() {
             const app = document.getElementById('app');
             state.rncs.forEach(rnc => sincronizarFluxo8D(rnc));
+            if (!isCurrentUserAdmin() && ['admin', 'cadastro-pessoas'].includes(state.currentPage)) {
+                state.currentPage = 'dashboard';
+            }
             
             if (state.currentPage === 'login') {
                 app.innerHTML = renderLogin();
@@ -2916,7 +3022,7 @@
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
                             ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
-                            ${state.currentPage === 'cadastro-pessoas' ? renderCadastroPessoas() : ''}
+                            ${(state.currentPage === 'cadastro-pessoas' || state.currentPage === 'admin') ? renderAdmin() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                             ${state.currentPage === 'relatorios' ? renderRelatorios() : ''}
                         </div>
@@ -2970,9 +3076,11 @@
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
                             <span>Cadastro de RNC</span>
                         </div>
-                        <div class="nav-item ${state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="cadastro-pessoas">
-                            <span>Cadastros Base</span>
-                        </div>
+                        ${isCurrentUserAdmin() ? `
+                            <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin">
+                                <span>Admin</span>
+                            </div>
+                        ` : ''}
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
                             <span>Relatórios</span>
                         </div>
@@ -3607,7 +3715,7 @@
                                 <label>Cliente</label>
                                 <select name="cliente" required>
                                     <option value="">Selecione</option>
-                                    ${clientesBase.map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
+                                    ${getClientesAtivos().map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -3618,7 +3726,7 @@
                                 <label>Tipo de Falha</label>
                                 <select name="tipoFalha" required>
                                     <option value="">Selecione</option>
-                                    ${modosFalhaBase.map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
+                                    ${getModosFalhaAtivos().map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
                                 </select>
                             </div>
                             <div class="form-group">
@@ -3698,22 +3806,86 @@
             `;
         }
 
-        function renderCadastroPessoas() {
+        function renderAdmin() {
+            if (!isCurrentUserAdmin()) {
+                return `
+                    <h1 class="page-title">Administração</h1>
+                    <div class="card">
+                        <p style="color:#475569;">Acesso restrito. Apenas usuários com perfil ADMIN podem visualizar esta área.</p>
+                    </div>
+                `;
+            }
+            const abas = [
+                { id: 'pessoas', label: 'Pessoas', tipo: 'pessoas' },
+                { id: 'clientes', label: 'Clientes', tipo: 'clientes' },
+                { id: 'modos', label: 'Modos de Falha', tipo: 'modos-falha' },
+                { id: 'templates', label: 'Templates de E-mail', tipo: '' }
+            ];
+            const totalPorTipo = {
+                pessoas: pessoasBase.length,
+                clientes: clientesBase.length,
+                modos: modosFalhaBase.length
+            };
+            const templateAtual = getTemplateEscalonamento(state.adminTemplateTipo || 'FASE');
             return `
-                <h1 class="page-title">Cadastros Base</h1>
-                <div class="stats-grid">
-                    ${['pessoas', 'modos-falha', 'clientes'].map(tipo => {
-                        const config = getCadastroConfig(tipo);
-                        const total = getCadastroLista(tipo).length;
-                        return `
-                            <div class="card">
-                                <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 0.5rem;">${config.titulo}</h3>
-                                <p style="color:#64748b; margin-bottom: 1rem;">${config.descricao}</p>
-                                <p style="font-size:0.875rem; color:#475569; margin-bottom: 1rem;">Itens cadastrados: <strong>${total}</strong></p>
-                                <button type="button" class="btn btn-primary btn-gerenciar-cadastro" data-cadastro-tipo="${tipo}">Gerenciar</button>
-                            </div>
-                        `;
-                    }).join('')}
+                <h1 class="page-title">Administração</h1>
+                <div class="card">
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        ${abas.map(aba => `
+                            <button type="button" class="modal-tab admin-tab-btn ${state.adminTabAtiva === aba.id ? 'active' : ''}" data-admin-tab="${aba.id}">${aba.label}</button>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="card" style="${state.adminTabAtiva === 'templates' ? 'display:none;' : ''}">
+                    ${['pessoas', 'clientes', 'modos'].includes(state.adminTabAtiva) ? `
+                        <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 0.5rem;">${abas.find(a => a.id === state.adminTabAtiva)?.label || ''}</h3>
+                        <p style="color:#64748b; margin-bottom: 1rem;">${state.adminTabAtiva === 'pessoas' ? 'Base de usuários, perfis e gerência vinculada para escalonamento.' : state.adminTabAtiva === 'clientes' ? 'Clientes ativos/inativos para seleção no cadastro da RNC.' : 'Modos de falha disponíveis para seleção no cadastro da RNC.'}</p>
+                        <p style="font-size:0.875rem; color:#475569; margin-bottom: 1rem;">Itens cadastrados: <strong>${totalPorTipo[state.adminTabAtiva] || 0}</strong></p>
+                        <button type="button" class="btn btn-primary btn-gerenciar-cadastro" data-cadastro-tipo="${abas.find(a => a.id === state.adminTabAtiva)?.tipo || ''}">Gerenciar</button>
+                    ` : ''}
+                </div>
+                <div class="card" style="${state.adminTabAtiva === 'templates' ? '' : 'display:none;'}">
+                    <h3 style="font-size:1.1rem; font-weight:800; margin-bottom:0.75rem;">Templates de E-mail (Escalonamento)</h3>
+                    <div class="form-group">
+                        <label>Tipo de Template</label>
+                        <select id="adminTemplateTipoSelect">
+                            <option value="FASE" ${(state.adminTemplateTipo || 'FASE') === 'FASE' ? 'selected' : ''}>Escalonamento por atraso de FASE</option>
+                            <option value="ACAO" ${state.adminTemplateTipo === 'ACAO' ? 'selected' : ''}>Escalonamento por atraso de AÇÃO</option>
+                            <option value="PRAZO_TOTAL_RNC" ${state.adminTemplateTipo === 'PRAZO_TOTAL_RNC' ? 'selected' : ''}>Escalonamento por estouro do prazo total da RNC</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Assunto do e-mail</label>
+                        <input type="text" id="adminTemplateAssunto" value="${escapeHtml(templateAtual.assunto || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label>Corpo do e-mail</label>
+                        <textarea rows="7" id="adminTemplateCorpo">${escapeHtml(templateAtual.corpo || '')}</textarea>
+                    </div>
+                    <p style="font-size:0.8125rem; color:#64748b; margin-bottom:0.75rem;">Variáveis: {{numero_rnc}}, {{cliente}}, {{fase}}, {{acao}}, {{responsavel}}, {{dias_atraso}}, {{quantidade_reprazo}}, {{data_referencia}}</p>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-success" id="salvarTemplateEmailBtn">Salvar Template</button>
+                        <button type="button" class="btn btn-secondary" id="testarTemplateEmailBtn">Testar Template</button>
+                    </div>
+                    <p id="adminTemplateFeedback" style="display:none; margin-top:0.75rem; font-size:0.85rem;"></p>
+                </div>
+                <div class="card">
+                    <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Auditoria de Alterações</h3>
+                    <div style="max-height:220px; overflow:auto;">
+                        <table>
+                            <thead><tr><th>Data</th><th>Ação</th><th>Detalhe</th><th>Usuário</th></tr></thead>
+                            <tbody>
+                                ${auditoriaAdmin.length ? auditoriaAdmin.slice(0, MAX_ADMIN_AUDIT_DISPLAY).map(item => `
+                                    <tr>
+                                        <td>${extractAndFormatDate(item.data)}</td>
+                                        <td>${escapeHtml(item.acao)}</td>
+                                        <td>${escapeHtml(item.detalhe)}</td>
+                                        <td>${escapeHtml(item.por)}</td>
+                                    </tr>
+                                `).join('') : `<tr><td colspan="4" style="text-align:center; color:#64748b;">Sem registros de auditoria.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             `;
         }
@@ -4581,7 +4753,7 @@
                                     <label>Responsável</label>
                                     <select id="d5-acao-responsavel" required>
                                         <option value="">Selecione</option>
-                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
+                                        ${getPessoasAtivas().map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
                                     </select>
                                 </div>
                             </div>
@@ -4802,7 +4974,7 @@
                                     <label>Responsável</label>
                                     <select id="d7-acao-responsavel" required>
                                         <option value="">Selecione</option>
-                                        ${pessoasBase.map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
+                                        ${getPessoasAtivas().map(pessoa => `<option value="${pessoa.id}" ${Number(dadosAcao.responsavelId) === pessoa.id ? 'selected' : ''}>${escapeHtml(pessoa.nome)}</option>`).join('')}
                                     </select>
                                 </div>
                             </div>
@@ -5534,7 +5706,20 @@
             if (loginForm) {
                 loginForm.onsubmit = (e) => {
                     e.preventDefault();
-                    state.currentUser = users[0];
+                    const emailInput = loginForm.querySelector('input[type="email"]');
+                    const emailInformado = String(emailInput?.value || '').trim().toLowerCase();
+                    const usuarioSistema = users.find(user => String(user.email || '').toLowerCase() === emailInformado);
+                    const pessoaCadastro = pessoasBase.find(pessoa => String(pessoa.email || '').toLowerCase() === emailInformado);
+                    const baseUser = usuarioSistema || {
+                        id: pessoaCadastro?.id || GUEST_USER_ID,
+                        name: pessoaCadastro?.nome || 'Usuário',
+                        email: emailInformado,
+                        role: pessoaCadastro?.cargo || 'Usuário',
+                        profile: String(pessoaCadastro?.perfilAcesso || 'USUARIO').toUpperCase(),
+                        planta: pessoaCadastro?.planta || 'Matriz',
+                        initials: (pessoaCadastro?.nome || 'U').split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase()
+                    };
+                    state.currentUser = baseUser;
                     state.currentPage = 'dashboard';
                     render();
                 };
@@ -5550,6 +5735,10 @@
                             render();
                         }
                     } else if (page) {
+                        if (page === 'admin' && !isCurrentUserAdmin()) {
+                            alert('Acesso restrito ao perfil ADMIN.');
+                            return;
+                        }
                         state.currentPage = page;
                         render();
                     }
@@ -5882,6 +6071,71 @@
             document.querySelectorAll('.btn-gerenciar-cadastro').forEach(btn => {
                 btn.onclick = () => abrirModalListagemCadastro(btn.dataset.cadastroTipo);
             });
+
+            document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+                btn.onclick = () => {
+                    if (!isCurrentUserAdmin()) return;
+                    state.adminTabAtiva = btn.dataset.adminTab;
+                    render();
+                };
+            });
+
+            const adminTemplateTipoSelect = document.getElementById('adminTemplateTipoSelect');
+            if (adminTemplateTipoSelect) {
+                adminTemplateTipoSelect.onchange = () => {
+                    state.adminTemplateTipo = adminTemplateTipoSelect.value;
+                    render();
+                };
+            }
+            const salvarTemplateEmailBtn = document.getElementById('salvarTemplateEmailBtn');
+            const testarTemplateEmailBtn = document.getElementById('testarTemplateEmailBtn');
+            const adminTemplateFeedback = document.getElementById('adminTemplateFeedback');
+            if (salvarTemplateEmailBtn && testarTemplateEmailBtn) {
+                salvarTemplateEmailBtn.onclick = () => {
+                    if (!isCurrentUserAdmin()) return;
+                    const tipo = state.adminTemplateTipo || 'FASE';
+                    const key = tipo === 'ACAO' ? 'acao' : (tipo === 'PRAZO_TOTAL_RNC' ? 'prazoTotal' : 'fase');
+                    const assunto = String(document.getElementById('adminTemplateAssunto')?.value || '').trim();
+                    const corpo = String(document.getElementById('adminTemplateCorpo')?.value || '').trim();
+                    if (!assunto || !corpo) {
+                        if (adminTemplateFeedback) {
+                            adminTemplateFeedback.style.display = 'block';
+                            adminTemplateFeedback.style.color = '#dc2626';
+                            adminTemplateFeedback.textContent = 'Preencha assunto e corpo do template.';
+                        }
+                        return;
+                    }
+                    emailTemplatesBase[key] = { assunto, corpo };
+                    registrarAuditoriaAdmin('Atualização de template', `Template ${tipo} atualizado`);
+                    if (adminTemplateFeedback) {
+                        adminTemplateFeedback.style.display = 'block';
+                        adminTemplateFeedback.style.color = '#059669';
+                        adminTemplateFeedback.textContent = 'Template salvo com sucesso.';
+                    }
+                };
+                testarTemplateEmailBtn.onclick = () => {
+                    const tipo = state.adminTemplateTipo || 'FASE';
+                    const assunto = String(document.getElementById('adminTemplateAssunto')?.value || '').trim();
+                    const corpo = String(document.getElementById('adminTemplateCorpo')?.value || '').trim();
+                    const exemplo = {
+                        numero_rnc: 'RNC-2026-001',
+                        cliente: 'Cliente Exemplo',
+                        fase: 'D3 - Contenção',
+                        acao: 'Ajuste de setup',
+                        responsavel: 'João Silva',
+                        dias_atraso: '3',
+                        quantidade_reprazo: '2',
+                        data_referencia: formatDateSafe(new Date().toISOString().slice(0, 10))
+                    };
+                    const preview = `Assunto: ${aplicarTemplateEmail(assunto, exemplo)}\n\n${aplicarTemplateEmail(corpo, exemplo)}`;
+                    alert(preview);
+                    if (adminTemplateFeedback) {
+                        adminTemplateFeedback.style.display = 'block';
+                        adminTemplateFeedback.style.color = '#1d4ed8';
+                        adminTemplateFeedback.textContent = `Template ${tipo} testado com dados de exemplo.`;
+                    }
+                };
+            }
 
             const d3Estoque = document.getElementById('d3-estoque');
             const d3Inspecionada = document.getElementById('d3-inspecionada');
