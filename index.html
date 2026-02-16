@@ -3783,13 +3783,13 @@
                         <thead>
                             <tr>
                                 <th>${renderControleSortHeader('Número da RNC', 'numero')}</th>
+                                <th>${renderControleSortHeader('Data de Abertura', 'dataAbertura')}</th>
                                 <th>Cliente</th>
                                 <th>${renderControleSortHeader('Responsável', 'responsavel')}</th>
                                 <th>${renderControleSortHeader('Fase Atual', 'faseAtual')}</th>
+                                <th>${renderControleSortHeader('Prazo da Fase Atual', 'dataReferencia')}</th>
                                 <th>Status Conclusão</th>
                                 <th>${renderControleSortHeader('Status da Fase', 'statusEtapas')}</th>
-                                <th>${renderControleSortHeader('Data de Referência (Fase)', 'dataReferencia')}</th>
-                                <th>${renderControleSortHeader('Data de Abertura', 'dataAbertura')}</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -3799,16 +3799,16 @@
                                 return `
                                 <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
+                                    <td>${formatDateSafe(dataAbertura)}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${escapeHtml(responsavel)}</td>
                                     <td><span class="badge blue">${fase.name}</span></td>
+                                    <td>${formatDateSafe(dataReferencia)}</td>
                                     <td><span class="badge ${statusConclusao.className}">${statusConclusao.label}</span></td>
                                     <td>
                                         <span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span>
                                         <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.texto}</span>
                                     </td>
-                                    <td>${formatDateSafe(dataReferencia)}</td>
-                                    <td>${formatDateSafe(dataAbertura)}</td>
                                     <td>
                                         <button class="btn btn-primary btn-view" data-rnc-id="${rnc.id}" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                             Ver Detalhes
