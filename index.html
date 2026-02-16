@@ -1331,6 +1331,14 @@
                 key: '',
                 dir: 'asc'
             },
+            movimentacoesFilters: {
+                dataInicio: '',
+                dataFim: '',
+                usuario: '',
+                tipoAcao: '',
+                modulo: '',
+                numeroRnc: ''
+            },
             selectedRNC: null,
             activeTab: 'd1',
             activeD4SubTab: 'principal',
@@ -1749,14 +1757,36 @@
             return String(state.currentUser?.profile || '').toUpperCase() === 'ADMIN';
         }
 
-        function registrarAuditoriaAdmin(acao, detalhe) {
-            auditoriaAdmin.unshift({
-                acao,
-                detalhe,
-                por: state.currentUser?.name || 'Sistema',
-                data: new Date().toISOString()
-            });
+        function registrarMovimentacao({ tipoAcao, modulo, referencia = '', descricao = '', usuario, perfil, data } = {}) {
+            const registro = {
+                data: data || new Date().toISOString(),
+                usuario: usuario || state.currentUser?.name || 'Sistema',
+                perfil: (perfil || state.currentUser?.profile || 'SISTEMA').toUpperCase(),
+                tipoAcao: String(tipoAcao || 'EDIÇÃO').toUpperCase(),
+                modulo: String(modulo || 'Sistema'),
+                referencia: String(referencia || ''),
+                descricao: String(descricao || '')
+            };
+            registro.acao = registro.tipoAcao;
+            registro.detalhe = `${registro.modulo}${registro.referencia ? ` • ${registro.referencia}` : ''} • ${registro.descricao}`;
+            registro.por = registro.usuario;
+            auditoriaAdmin.unshift(registro);
             auditoriaAdmin = auditoriaAdmin.slice(0, MAX_ADMIN_AUDIT_RECORDS);
+            if (db) {
+                salvarCadastrosBaseNoFirebase().catch(() => {});
+            }
+        }
+
+        function registrarAuditoriaAdmin(acao, detalhe, extras = {}) {
+            registrarMovimentacao({
+                tipoAcao: extras.tipoAcao || acao || 'EDIÇÃO',
+                modulo: extras.modulo || 'Admin',
+                referencia: extras.referencia || '',
+                descricao: detalhe || extras.descricao || '',
+                usuario: extras.usuario,
+                perfil: extras.perfil,
+                data: extras.data
+            });
         }
 
         function aplicarTemplateEmail(template, contexto = {}) {
@@ -2532,6 +2562,11 @@
                     totalReprazosFase: Number(dados.totalReprazosFase || 0),
                     totalReprazosAcao: Number(dados.totalReprazosAcao || 0)
                 });
+                registrarAuditoriaAdmin('ENVIO', `Escalonamento automático registrado para ${dados.responsavel || 'responsável não identificado'}${dados.emailGerencia ? ` (${dados.emailGerencia})` : ''}`, {
+                    modulo: 'Template de E-mail',
+                    referencia: rnc.numero || '',
+                    tipoAcao: 'ENVIO'
+                });
             }
         }
 
@@ -2861,7 +2896,7 @@
                     const idx = listaBase.findIndex(x => x.id === item.id);
                     if (idx !== -1) {
                         listaBase.splice(idx, 1);
-                        registrarAuditoriaAdmin('Exclusão de cadastro base', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`);
+                        registrarAuditoriaAdmin('EXCLUSAO', `${getCadastroConfig(btn.dataset.cadastroTipo).titulo}: ${item.nome}`, { modulo: 'Cadastro Base', referencia: item.nome, tipoAcao: 'EXCLUSAO' });
                         const salvoNoFirebase = await salvarCadastrosBaseNoFirebase();
                         if (!salvoNoFirebase) {
                             alert('Cadastro atualizado localmente, mas não foi possível salvar no Firebase agora.');
@@ -2968,12 +3003,12 @@
                         const nomeAnterior = listaBase[idx].nome;
                         listaBase[idx] = { ...listaBase[idx], ...payload };
                         propagarRenomeacaoCadastro(tipo, nomeAnterior, listaBase[idx].nome);
-                        registrarAuditoriaAdmin('Atualização de cadastro base', `${config.titulo}: ${listaBase[idx].nome}`);
+                        registrarAuditoriaAdmin('EDICAO', `${config.titulo}: ${listaBase[idx].nome}`, { modulo: 'Cadastro Base', referencia: listaBase[idx].nome, tipoAcao: 'EDICAO' });
                     }
                 } else {
                     const nextId = getNextId(listaBase);
                     listaBase.push({ id: nextId, ...payload });
-                    registrarAuditoriaAdmin('Novo cadastro base', `${config.titulo}: ${payload.nome || nextId}`);
+                    registrarAuditoriaAdmin('INCLUSAO', `${config.titulo}: ${payload.nome || nextId}`, { modulo: 'Cadastro Base', referencia: payload.nome || String(nextId), tipoAcao: 'INCLUSAO' });
                 }
                 await salvarCadastrosBaseNoFirebase();
                 overlay.remove();
@@ -2988,7 +3023,9 @@
             const payload = {
                 pessoasBase,
                 clientesBase,
-                modosFalhaBase
+                modosFalhaBase,
+                emailTemplatesBase,
+                auditoriaAdmin
             };
             return db.collection('configuracoes')
                 .doc('cadastros-base')
@@ -3009,6 +3046,10 @@
                 if (Array.isArray(data.pessoasBase)) pessoasBase = data.pessoasBase;
                 if (Array.isArray(data.clientesBase)) clientesBase = data.clientesBase;
                 if (Array.isArray(data.modosFalhaBase)) modosFalhaBase = data.modosFalhaBase;
+                if (data.emailTemplatesBase && typeof data.emailTemplatesBase === 'object') {
+                    emailTemplatesBase = { ...defaultEmailTemplates, ...data.emailTemplatesBase };
+                }
+                if (Array.isArray(data.auditoriaAdmin)) auditoriaAdmin = data.auditoriaAdmin;
             } catch (error) {
                 console.warn('Falha ao carregar cadastros base do Firebase:', error);
             }
@@ -3062,7 +3103,7 @@
         function render() {
             const app = document.getElementById('app');
             state.rncs.forEach(rnc => sincronizarFluxo8D(rnc));
-            if (!isCurrentUserAdmin() && ['admin', 'cadastro-pessoas'].includes(state.currentPage)) {
+            if (!isCurrentUserAdmin() && ['admin', 'cadastro-pessoas', 'movimentacoes'].includes(state.currentPage)) {
                 state.currentPage = 'dashboard';
             }
             
@@ -3077,6 +3118,7 @@
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
                             ${state.currentPage === 'cadastro-rnc' ? renderCadastroRNC() : ''}
                             ${(state.currentPage === 'cadastro-pessoas' || state.currentPage === 'admin') ? renderAdmin() : ''}
+                            ${state.currentPage === 'movimentacoes' ? renderMovimentacoes() : ''}
                             ${state.currentPage === 'controle' ? renderControle() : ''}
                             ${state.currentPage === 'relatorios' ? renderRelatorios() : ''}
                         </div>
@@ -3133,6 +3175,9 @@
                         ${isCurrentUserAdmin() ? `
                             <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin">
                                 <span>Cadastro Base</span>
+                            </div>
+                            <div class="nav-item ${state.currentPage === 'movimentacoes' ? 'active' : ''}" data-page="movimentacoes">
+                                <span>Movimentações</span>
                             </div>
                         ` : ''}
                         <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
@@ -3963,6 +4008,79 @@
             `;
         }
 
+        function renderMovimentacoes() {
+            if (!isCurrentUserAdmin()) {
+                return `
+                    <h1 class="page-title">Movimentações</h1>
+                    <div class="card">
+                        <p style="color:#475569;">Acesso restrito. Apenas usuários com perfil ADMIN podem visualizar esta área.</p>
+                    </div>
+                `;
+            }
+            const filtros = state.movimentacoesFilters || {};
+            const normalize = (v) => String(v || '').trim().toLowerCase();
+            const inicio = filtros.dataInicio ? parseISODate(filtros.dataInicio) : null;
+            const fimRaw = filtros.dataFim ? parseISODate(filtros.dataFim) : null;
+            const fim = fimRaw ? new Date(fimRaw) : null;
+            if (fim) fim.setHours(23, 59, 59, 999);
+            const logsFiltrados = auditoriaAdmin.filter(item => {
+                const data = new Date(item.data || '');
+                if (inicio && data < inicio) return false;
+                if (fim && data > fim) return false;
+                if (filtros.usuario && normalize(item.usuario || item.por) !== normalize(filtros.usuario)) return false;
+                if (filtros.tipoAcao && String(item.tipoAcao || item.acao || '').toUpperCase() !== String(filtros.tipoAcao).toUpperCase()) return false;
+                if (filtros.modulo && normalize(item.modulo) !== normalize(filtros.modulo)) return false;
+                if (filtros.numeroRnc && !normalize(item.referencia || '').includes(normalize(filtros.numeroRnc))) return false;
+                return true;
+            });
+            const usuarios = [...new Set(auditoriaAdmin.map(item => item.usuario || item.por).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            const tipos = [...new Set(auditoriaAdmin.map(item => (item.tipoAcao || item.acao || '').toUpperCase()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            const modulos = [...new Set(auditoriaAdmin.map(item => item.modulo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            return `
+                <h1 class="page-title">Movimentações / Auditoria</h1>
+                <div class="card">
+                    <div class="grid-2">
+                        <div class="form-group"><label>Data inicial</label><input type="date" id="movDataInicio" value="${escapeHtml(filtros.dataInicio || '')}"></div>
+                        <div class="form-group"><label>Data final</label><input type="date" id="movDataFim" value="${escapeHtml(filtros.dataFim || '')}"></div>
+                        <div class="form-group"><label>Usuário</label><select id="movUsuario"><option value="">Todos</option>${usuarios.map(usuario => `<option value="${escapeHtml(usuario)}" ${filtros.usuario === usuario ? 'selected' : ''}>${escapeHtml(usuario)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Tipo de ação</label><select id="movTipoAcao"><option value="">Todos</option>${tipos.map(tipo => `<option value="${escapeHtml(tipo)}" ${filtros.tipoAcao === tipo ? 'selected' : ''}>${escapeHtml(tipo)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Módulo</label><select id="movModulo"><option value="">Todos</option>${modulos.map(modulo => `<option value="${escapeHtml(modulo)}" ${filtros.modulo === modulo ? 'selected' : ''}>${escapeHtml(modulo)}</option>`).join('')}</select></div>
+                        <div class="form-group"><label>Número da RNC</label><input type="text" id="movNumeroRnc" placeholder="RNC-2026-001" value="${escapeHtml(filtros.numeroRnc || '')}"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="overflow:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Usuário</th>
+                                    <th>Perfil</th>
+                                    <th>Ação</th>
+                                    <th>Módulo</th>
+                                    <th>Referência</th>
+                                    <th>Descrição</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${logsFiltrados.length ? logsFiltrados.map(item => `
+                                    <tr>
+                                        <td>${new Date(item.data || '').toLocaleString('pt-BR')}</td>
+                                        <td>${escapeHtml(item.usuario || item.por || '-')}</td>
+                                        <td>${escapeHtml(item.perfil || '-')}</td>
+                                        <td>${escapeHtml(item.tipoAcao || item.acao || '-')}</td>
+                                        <td>${escapeHtml(item.modulo || '-')}</td>
+                                        <td>${escapeHtml(item.referencia || '-')}</td>
+                                        <td>${escapeHtml(item.descricao || item.detalhe || '-')}</td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="7" style="text-align:center; color:#64748b;">Sem registros para os filtros selecionados.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
         function getControleRows() {
             const hojeIso = new Date().toISOString().slice(0, 10);
             return state.rncs.map(rnc => {
@@ -4782,6 +4900,11 @@
             }
             state.rncs[rncIndex].d3.etapaConcluida = true;
             state.rncs[rncIndex].d3.dataConclusao = new Date().toISOString();
+            registrarAuditoriaAdmin('EDICAO', 'Etapa D3 concluída com dados de contenção e evidência.', {
+                modulo: 'Fase D3',
+                referencia: state.rncs[rncIndex].numero,
+                tipoAcao: 'EDICAO'
+            });
             const indiceFaseAtual = phases.findIndex(p => p.id === 'd3');
             const proximaFase = (indiceFaseAtual >= 0 && indiceFaseAtual < phases.length - 1) ? phases[indiceFaseAtual + 1] : null;
             if (proximaFase) {
@@ -4858,6 +4981,20 @@
                 const idxAcao = state.rncs[rncIndex].d5.listaAcoes.findIndex(acao => acao.id === payload.id);
                 if (idxAcao >= 0) state.rncs[rncIndex].d5.listaAcoes[idxAcao] = payload;
                 else state.rncs[rncIndex].d5.listaAcoes.push(payload);
+                const responsavelAnterior = acaoExistente ? (getPessoaById(acaoExistente.responsavelId)?.nome || '-') : '-';
+                const responsavelAtual = getPessoaById(payload.responsavelId)?.nome || '-';
+                const acaoTipoLog = acaoExistente ? 'EDICAO' : 'INCLUSAO';
+                const detalhesAcao = [
+                    `Ação corretiva "${payload.descricao}"`,
+                    `Responsável: ${responsavelAtual}`,
+                    `Prazo: ${formatDateSafe(payload.prazoPrincipal)}`
+                ];
+                if (acaoExistente && responsavelAnterior !== responsavelAtual) detalhesAcao.push(`Responsável anterior: ${responsavelAnterior}`);
+                registrarAuditoriaAdmin(acaoTipoLog, detalhesAcao.join(' • '), {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: acaoTipoLog
+                });
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
@@ -4968,7 +5105,7 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
-                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`);
+                    registrarAuditoriaAdmin('EDICAO', `Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`, { modulo: 'Ação Corretiva', referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 }
                 if (evidenciaInput.files?.length) {
                     const arquivo = evidenciaInput.files[0];
@@ -4990,6 +5127,11 @@
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 await salvarRNCNoFirebase(state.selectedRNC);
+                registrarAuditoriaAdmin('EDICAO', `Ação corretiva "${acao.descricao || '-'}" atualizada na implementação D6.`, {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
                 overlay.remove();
                 render();
             };
@@ -5008,6 +5150,11 @@
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
+                registrarAuditoriaAdmin('EDICAO', `Ação corretiva "${acao.descricao || '-'}" concluída na D6.`, {
+                    modulo: 'Ação Corretiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
                 overlay.remove();
                 render();
             };
@@ -5085,6 +5232,20 @@
                 const idxAcao = acoes.findIndex(acao => acao.id === payload.id);
                 if (idxAcao >= 0) acoes[idxAcao] = payload;
                 else acoes.push(payload);
+                const responsavelAnterior = acaoExistente ? (getPessoaById(acaoExistente.responsavelId)?.nome || '-') : '-';
+                const responsavelAtual = getPessoaById(payload.responsavelId)?.nome || '-';
+                const acaoTipoLog = acaoExistente ? 'EDICAO' : 'INCLUSAO';
+                const detalhesAcao = [
+                    `Ação preventiva "${payload.descricao}"`,
+                    `Responsável: ${responsavelAtual}`,
+                    `Prazo: ${formatDateSafe(payload.prazoPrincipal)}`
+                ];
+                if (acaoExistente && responsavelAnterior !== responsavelAtual) detalhesAcao.push(`Responsável anterior: ${responsavelAnterior}`);
+                registrarAuditoriaAdmin(acaoTipoLog, detalhesAcao.join(' • '), {
+                    modulo: 'Ação Preventiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: acaoTipoLog
+                });
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
@@ -5198,7 +5359,7 @@
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
-                    registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${numero} aplicado na ação preventiva "${acao.descricao || '-'}"`);
+                    registrarAuditoriaAdmin('EDICAO', `Re-prazo ${numero} aplicado na ação preventiva "${acao.descricao || '-'}"`, { modulo: 'Ação Preventiva', referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 }
                 if (evidenciaInput.files?.length) {
                     const arquivo = evidenciaInput.files[0];
@@ -5238,6 +5399,11 @@
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
+                registrarAuditoriaAdmin('EDICAO', `Ação preventiva "${acao.descricao || '-'}" concluída na D7.`, {
+                    modulo: 'Ação Preventiva',
+                    referencia: state.rncs[rncIndex].numero,
+                    tipoAcao: 'EDICAO'
+                });
                 overlay.remove();
                 render();
             };
@@ -5281,6 +5447,11 @@
             sincronizarFluxo8D(state.selectedRNC);
             if (concluir) state.activeTab = state.selectedRNC.faseAtual;
             const salvoNoFirebase = await salvarRNCNoFirebase(state.selectedRNC);
+            registrarAuditoriaAdmin('EDICAO', concluir ? 'D8 concluído e RNC encerrada.' : 'D8 atualizado.', {
+                modulo: 'Fase D8',
+                referencia: rnc.numero,
+                tipoAcao: 'EDICAO'
+            });
             alert(salvoNoFirebase
                 ? (concluir ? 'D8 concluído e 8D encerrado com sucesso!' : 'D8 salvo com sucesso!')
                 : (concluir ? 'D8 concluído localmente. Firebase indisponível.' : 'D8 salvo localmente. Firebase indisponível.'));
@@ -5751,7 +5922,7 @@
                     state.rncs[rncIndex].prazos[phaseId].reprazo2 = novaData;
                     state.rncs[rncIndex].prazos[phaseId].just2 = just;
                 }
-                registrarAuditoriaAdmin('Alteração de prazo', `RNC ${state.rncs[rncIndex].numero} - Re-prazo ${num} definido para ${getLabelCurtoFase(phaseId)} em ${formatDateSafe(novaData)}`);
+                registrarAuditoriaAdmin('EDICAO', `Re-prazo ${num} definido para ${getLabelCurtoFase(phaseId)} em ${formatDateSafe(novaData)}`, { modulo: `Fase ${getLabelCurtoFase(phaseId)}`, referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 
                 state.rncs[rncIndex].status = "AT_RISK";
                 state.selectedRNC = state.rncs[rncIndex];
@@ -5829,6 +6000,14 @@
                         initials: (pessoaCadastro?.nome || 'U').split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase()
                     };
                     state.currentUser = baseUser;
+                    registrarMovimentacao({
+                        tipoAcao: 'LOGIN',
+                        modulo: 'Usuários e Segurança',
+                        referencia: baseUser.email,
+                        descricao: 'Acesso ao sistema',
+                        usuario: baseUser.name,
+                        perfil: baseUser.profile
+                    });
                     state.currentPage = 'dashboard';
                     render();
                 };
@@ -5839,12 +6018,18 @@
                     const page = item.dataset.page;
                     if (page === 'logout') {
                         if (confirm('Sair?')) {
+                            registrarMovimentacao({
+                                tipoAcao: 'LOGOUT',
+                                modulo: 'Usuários e Segurança',
+                                referencia: state.currentUser?.email || '',
+                                descricao: 'Saída do sistema'
+                            });
                             state.currentUser = null;
                             state.currentPage = 'login';
                             render();
                         }
                     } else if (page) {
-                        if (page === 'admin' && !isCurrentUserAdmin()) {
+                        if ((page === 'admin' || page === 'movimentacoes') && !isCurrentUserAdmin()) {
                             alert('Acesso restrito ao perfil ADMIN.');
                             return;
                         }
@@ -6170,6 +6355,11 @@
                     };
 
                     state.rncs.push(novaRnc);
+                    registrarAuditoriaAdmin('INCLUSAO', `Nova RNC criada (${novaRnc.numero}) para o cliente ${novaRnc.cliente}.`, {
+                        modulo: 'RNC',
+                        referencia: novaRnc.numero,
+                        tipoAcao: 'INCLUSAO'
+                    });
                     const salvoNoFirebase = await salvarRNCNoFirebase(novaRnc);
                     cadastroRncForm.reset();
                     render();
@@ -6188,6 +6378,26 @@
                     render();
                 };
             });
+
+            const movDataInicio = document.getElementById('movDataInicio');
+            const movDataFim = document.getElementById('movDataFim');
+            const movUsuario = document.getElementById('movUsuario');
+            const movTipoAcao = document.getElementById('movTipoAcao');
+            const movModulo = document.getElementById('movModulo');
+            const movNumeroRnc = document.getElementById('movNumeroRnc');
+            if (movDataInicio && movDataFim && movUsuario && movTipoAcao && movModulo && movNumeroRnc) {
+                const aplicarFiltrosMovimentacoes = () => {
+                    state.movimentacoesFilters.dataInicio = movDataInicio.value;
+                    state.movimentacoesFilters.dataFim = movDataFim.value;
+                    state.movimentacoesFilters.usuario = movUsuario.value;
+                    state.movimentacoesFilters.tipoAcao = movTipoAcao.value;
+                    state.movimentacoesFilters.modulo = movModulo.value;
+                    state.movimentacoesFilters.numeroRnc = movNumeroRnc.value;
+                    render();
+                };
+                [movDataInicio, movDataFim, movUsuario, movTipoAcao, movModulo].forEach(el => el.onchange = aplicarFiltrosMovimentacoes);
+                movNumeroRnc.oninput = aplicarFiltrosMovimentacoes;
+            }
 
             const adminTemplateTipoSelect = document.getElementById('adminTemplateTipoSelect');
             if (adminTemplateTipoSelect) {
@@ -6215,7 +6425,7 @@
                         return;
                     }
                     emailTemplatesBase[key] = { assunto, corpo };
-                    registrarAuditoriaAdmin('Atualização de template', `Template ${tipo} atualizado`);
+                    registrarAuditoriaAdmin('EDICAO', `Template ${tipo} atualizado`, { modulo: 'Template de E-mail', referencia: tipo, tipoAcao: 'EDICAO' });
                     if (adminTemplateFeedback) {
                         adminTemplateFeedback.style.display = 'block';
                         adminTemplateFeedback.style.color = '#059669';
@@ -6223,6 +6433,10 @@
                     }
                 };
                 testarTemplateEmailBtn.onclick = () => {
+                    if (!isCurrentUserAdmin()) {
+                        alert('Acesso restrito ao perfil ADMIN.');
+                        return;
+                    }
                     const tipo = state.adminTemplateTipo || 'FASE';
                     const assunto = String(document.getElementById('adminTemplateAssunto')?.value || '').trim();
                     const corpo = String(document.getElementById('adminTemplateCorpo')?.value || '').trim();
@@ -6238,6 +6452,11 @@
                     };
                     const preview = `Assunto: ${aplicarTemplateEmail(assunto, exemplo)}\n\n${aplicarTemplateEmail(corpo, exemplo)}`;
                     alert(preview);
+                    registrarAuditoriaAdmin('ENVIO', `Teste de template ${tipo} executado com dados de exemplo.`, {
+                        modulo: 'Template de E-mail',
+                        referencia: tipo,
+                        tipoAcao: 'ENVIO'
+                    });
                     if (adminTemplateFeedback) {
                         adminTemplateFeedback.style.display = 'block';
                         adminTemplateFeedback.style.color = '#1d4ed8';
@@ -6391,7 +6610,7 @@
                     }
                     setUserPassword(usuarioEmail, novaSenha);
                     const pessoaAlvo = pessoasBase.find(pessoa => normalizeEmail(pessoa.email) === usuarioEmail);
-                    registrarAuditoriaAdmin('Troca de senha', `Senha redefinida para ${pessoaAlvo?.nome || 'Usuário'} (id: ${pessoaAlvo?.id || '-'})`);
+                    registrarAuditoriaAdmin('EDICAO', `Senha redefinida para ${pessoaAlvo?.nome || 'Usuário'} (id: ${pessoaAlvo?.id || '-'})`, { modulo: 'Usuários e Segurança', referencia: pessoaAlvo?.email || usuarioEmail, tipoAcao: 'EDICAO' });
                     msg.textContent = `Senha atualizada com sucesso para ${usuarioEmail}.`;
                     msg.style.color = '#059669';
                     segurancaSenhaForm.reset();
