@@ -3805,7 +3805,7 @@
                                     <td><span class="badge ${statusConclusao.className}">${statusConclusao.label}</span></td>
                                     <td>
                                         <span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span>
-                                        <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.total > 0 ? `Fase com ${governancaReprazo.total} re-prazo${governancaReprazo.total === 1 ? '' : 's'}. ` : ''}${governancaReprazo.texto}</span>
+                                        <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.texto}</span>
                                     </td>
                                     <td>${formatDateSafe(dataReferencia)}</td>
                                     <td>${formatDateSafe(dataAbertura)}</td>
