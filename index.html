@@ -5254,7 +5254,7 @@
 
                                     const statusBadge = isDone
                                         ? `<span class="badge green">Concluída</span>`
-                                        : (evidOk || (acao.reprazos?.length) ? `<span class="badge orange">Em andamento</span>` : `<span class="badge red">Não iniciada</span>`);
+                                        : (evidOk || ((acao.reprazos?.length || 0) > 0) ? `<span class="badge orange">Em andamento</span>` : `<span class="badge red">Não iniciada</span>`);
 
                                     const reprazoTexto = acao.reprazos?.length ? `Sim / Nº ${acao.reprazos.length}` : 'Não';
 
@@ -5315,9 +5315,14 @@
                                     if (!isDone && prazo) {
                                         const diffDias = Math.floor((prazo.getTime() - hojeD7.getTime()) / 86400000);
                                         if (diffDias < 0) statusPrazo = { className: 'red', label: 'Atrasada' };
-                                        else if (diffDias <= 3) statusPrazo = { className: 'orange', label: 'Em andamento' };
+                                        else if (diffDias <= 3) statusPrazo = { className: 'orange', label: 'Próximo ao vencimento' };
                                     }
-                                    const statusBadge = isDone ? `<span class="badge green">Concluída</span>` : (statusPrazo.className === 'red' ? `<span class="badge red">Atrasada</span>` : `<span class="badge orange">Em andamento</span>`);
+                                    const isProgress = evidOk || ((acao.reprazos?.length || 0) > 0);
+                                    const statusBadge = isDone
+                                        ? `<span class="badge green">Concluída</span>`
+                                        : (statusPrazo.className === 'red'
+                                            ? `<span class="badge red">Atrasada</span>`
+                                            : (isProgress ? `<span class="badge orange">Em andamento</span>` : `<span class="badge red">Não iniciada</span>`));
                                     const stateClass = isDone ? 'state-done' : (statusPrazo.className === 'red' ? 'state-late' : '');
                                     return `
                                         <div class="d7-action-card ${stateClass}">
