@@ -1929,7 +1929,8 @@
                 }
 
                 if (isRncEmRisco(rnc)) {
-                    const etapaCritica = getEtapasEmAtraso(rnc)[0]?.phaseName || (phases.find(p => p.id === rnc.faseAtual)?.name || 'Etapa em andamento');
+                    const faseAtual = getFaseAtualDefinida(rnc);
+                    const etapaCritica = getEtapasEmAtraso(rnc)[0]?.phaseName || (phases.find(p => p.id === faseAtual)?.name || 'Etapa em andamento');
                     const atrasos = getEtapasEmAtraso(rnc);
                     const prazoTotalAtraso = isPrazoTotalRncExcedido(rnc)
                         ? Number(diffDays(addDaysToISO(rnc.dataAbertura, PRAZO_TOTAL_RNC_DIAS), hojeISO) || 0)
@@ -1940,7 +1941,7 @@
                         etapaCritica,
                         diasAtraso: Math.max(0, ...atrasos.map(item => Number(diffDays(item.vencimento, hojeISO) || 0)), prazoTotalAtraso),
                         historico: getHistoricoPrazosReprazos(rnc),
-                        reprazoInfo: getGovernancaReprazoRnc(rnc).texto
+                        reprazoInfo: getGovernancaReprazoFase(rnc, faseAtual).texto
                     });
                 }
             });
@@ -2360,6 +2361,12 @@
             }, 0);
         }
 
+        function getReprazoCountFase(rnc, phaseId) {
+            const prazoEtapa = rnc?.prazos?.[phaseId];
+            if (!prazoEtapa) return 0;
+            return (prazoEtapa.reprazo1 ? 1 : 0) + (prazoEtapa.reprazo2 ? 1 : 0);
+        }
+
         function getReprazoCountAcoes(listaAcoes, normalizer) {
             return (listaAcoes || []).reduce((acc, acao) => {
                 const normalizada = normalizer(acao);
@@ -2376,7 +2383,7 @@
         function registrarEscalonamentoReprazo(rnc, origem) {
             if (!rnc) return;
             if (!Array.isArray(rnc.escalonamentos)) rnc.escalonamentos = [];
-            const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === 'LIMITE_REPRAZO');
+            const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === 'LIMITE_REPRAZO' && item?.origem === origem);
             if (!jaEscalonada) {
                 rnc.escalonamentos.push({
                     tipo: 'LIMITE_REPRAZO',
@@ -2410,6 +2417,31 @@
             };
         }
 
+        function getGovernancaReprazoFase(rnc, phaseId) {
+            const phase = phases.find(item => item.id === phaseId);
+            const faseLabel = `${phase?.short || String(phaseId || '').toUpperCase()} – ${String(phase?.name || '').replace(/^D\d+\s*-\s*/i, '').trim() || 'Etapa'}`;
+            const total = getReprazoCountFase(rnc, phaseId);
+            if (total >= LIMITE_NEGOCIACAO_REPRAZO) {
+                return {
+                    total,
+                    className: 'critical',
+                    texto: `⛔ Limite de re-prazos atingido na fase ${faseLabel}. Próximo atraso nesta fase será escalonado para a Gerência.`
+                };
+            }
+            if (total === 1) {
+                return {
+                    total,
+                    className: 'warning',
+                    texto: `⚠ Fase ${faseLabel} já teve 1 re-prazo. Restará apenas mais 1 negociação para esta fase.`
+                };
+            }
+            return {
+                total,
+                className: '',
+                texto: `Fase ${faseLabel} sem re-prazo registrado.`
+            };
+        }
+
         function isPrazoTotalRncExcedido(rnc) {
             if (!rnc?.dataAbertura || isEtapaConcluida(rnc, 'd8')) return false;
             const abertura = parseISODate(rnc.dataAbertura);
@@ -2424,10 +2456,10 @@
 
         function formatAtrasoFaseLabel(phaseId) {
             const phase = phases.find(p => p.id === phaseId);
-            if (!phase) return `Atrasada na fase ${(String(phaseId || 'D?').toUpperCase())} – Etapa não identificada`;
+            if (!phase) return `ATRASADA NA FASE ${(String(phaseId || 'D?').toUpperCase())} – ETAPA NÃO IDENTIFICADA`;
             const nome = String(phase.name || '').replace(/^D\d+\s*-\s*/i, '').trim();
             const sufixo = nome ? ` – ${nome}` : '';
-            return `Atrasada na fase ${phase.short || String(phase.id || '').toUpperCase()}${sufixo}`;
+            return `ATRASADA NA FASE ${phase.short || String(phase.id || '').toUpperCase()}${sufixo}`;
         }
 
         function getResponsavelEtapaAtrasada(rnc, phaseId) {
@@ -3627,13 +3659,14 @@
                 const faseAtual = getFaseAtualDefinida(rnc);
                 const fase = phases.find(p => p.id === faseAtual) || phases[0];
                 const dataReferencia = getDataReferenciaControle(rnc);
-                const governancaReprazo = getGovernancaReprazoRnc(rnc);
+                const governancaReprazo = getGovernancaReprazoFase(rnc, faseAtual);
+                const dataAbertura = rnc.dataAbertura || '';
                 const atrasos = getEtapasEmAtraso(rnc);
                 const maiorAtraso = Math.max(0, ...atrasos.map(item => Number(diffDays(item.vencimento, hojeIso) || 0)));
                 const criticidade = (statusEtapas.value === 'COM_ATRASO' ? PESO_CRITICIDADE_ATRASO : 0)
                     + maiorAtraso
                     + (isPrazoTotalRncExcedido(rnc) ? PESO_CRITICIDADE_PRAZO_TOTAL : 0);
-                return { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, faseAtual, fase, dataReferencia, governancaReprazo, criticidade };
+                return { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, faseAtual, fase, dataReferencia, dataAbertura, governancaReprazo, criticidade };
             });
         }
 
@@ -3676,6 +3709,9 @@
                 } else if (sort.key === 'dataReferencia') {
                     av = parseISODate(a.dataReferencia)?.getTime() || Number.MAX_SAFE_INTEGER;
                     bv = parseISODate(b.dataReferencia)?.getTime() || Number.MAX_SAFE_INTEGER;
+                } else if (sort.key === 'dataAbertura') {
+                    av = parseISODate(a.dataAbertura)?.getTime() || Number.MAX_SAFE_INTEGER;
+                    bv = parseISODate(b.dataAbertura)?.getTime() || Number.MAX_SAFE_INTEGER;
                 } else if (sort.key === 'criticidade') {
                     av = a.criticidade;
                     bv = b.criticidade;
@@ -3751,16 +3787,15 @@
                                 <th>${renderControleSortHeader('Responsável', 'responsavel')}</th>
                                 <th>${renderControleSortHeader('Fase Atual', 'faseAtual')}</th>
                                 <th>Status Conclusão</th>
-                                <th>
-                                    ${renderControleSortHeader('Status Etapas', 'statusEtapas')}
-                                    <div style="margin-top:0.25rem;">${renderControleSortHeader('Data de Referência', 'dataReferencia')}</div>
-                                </th>
+                                <th>${renderControleSortHeader('Status da Fase', 'statusEtapas')}</th>
+                                <th>${renderControleSortHeader('Data de Referência (Fase)', 'dataReferencia')}</th>
+                                <th>${renderControleSortHeader('Data de Abertura', 'dataAbertura')}</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${rows.map(item => {
-                                const { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, fase, governancaReprazo, dataReferencia } = item;
+                                const { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, fase, governancaReprazo, dataReferencia, dataAbertura } = item;
                                 return `
                                 <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
@@ -3770,9 +3805,10 @@
                                     <td><span class="badge ${statusConclusao.className}">${statusConclusao.label}</span></td>
                                     <td>
                                         <span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span>
-                                        <span class="controle-status-detail">Referência: ${formatDateSafe(dataReferencia)}</span>
-                                        <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.total > 0 ? `RNC já teve ${governancaReprazo.total} re-prazo${governancaReprazo.total === 1 ? '' : 's'}. ` : ''}${governancaReprazo.texto}</span>
+                                        <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.total > 0 ? `Fase com ${governancaReprazo.total} re-prazo${governancaReprazo.total === 1 ? '' : 's'}. ` : ''}${governancaReprazo.texto}</span>
                                     </td>
+                                    <td>${formatDateSafe(dataReferencia)}</td>
+                                    <td>${formatDateSafe(dataAbertura)}</td>
                                     <td>
                                         <button class="btn btn-primary btn-view" data-rnc-id="${rnc.id}" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                             Ver Detalhes
@@ -5326,10 +5362,12 @@
                  
                 const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
                 const rnc = state.rncs[rncIndex];
-                if (getTotalReprazosRNC(rnc) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                if (getReprazoCountFase(rnc, phaseId) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
                     registrarEscalonamentoReprazo(rnc, `ETAPA_${phaseId.toUpperCase()}`);
                     await salvarRNCNoFirebase(rnc);
-                    alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                    const phase = phases.find(p => p.id === phaseId);
+                    const faseLabel = `${phase?.short || phaseId.toUpperCase()} – ${String(phase?.name || '').replace(/^D\d+\s*-\s*/i, '').trim() || 'Etapa'}`;
+                    alert(`⛔ Limite de re-prazos atingido na fase ${faseLabel}. Próximo atraso nesta fase foi escalonado para a Gerência.`);
                     overlay.remove();
                     render();
                     return;
