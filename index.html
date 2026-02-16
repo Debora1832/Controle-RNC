@@ -2078,7 +2078,11 @@
             if (phaseId === 'd5') return (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).length > 0;
             if (phaseId === 'd6') {
                 const acoes = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
-                return acoes.length > 0 && acoes.every(acao => acao.status === 'CONCLUIDA' && (acao.evidencias?.length || 0) > 0);
+                return acoes.length > 0 && acoes.every(acao =>
+                    acao.status === 'CONCLUIDA' &&
+                    (!!acao.before_image_url || (acao.evidencias?.length || 0) > 0) &&
+                    (!!acao.after_image_url || (acao.evidencias?.length || 0) > 0)
+                );
             }
             if (phaseId === 'd7') {
                 const acoes = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7);
@@ -4973,7 +4977,7 @@
         }
 
         function normalizeAcaoD5(acao) {
-            if (!acao) return { id: '', descricao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], dataConclusao: '' };
+            if (!acao) return { id: '', descricao: '', prazoPrincipal: '', responsavelId: null, status: 'ABERTA', reprazos: [], evidencias: [], before_image_url: '', after_image_url: '', implementation_completed_at: '', implementation_completed_by: '', dataConclusao: '' };
             if (!Array.isArray(acao.reprazos)) {
                 const reprazos = [];
                 if (acao.reprazo1) reprazos.push({ numero: 1, data: acao.reprazo1, justificativa: acao.justificativaReprazo1 || '' });
@@ -4981,6 +4985,10 @@
                 acao.reprazos = reprazos;
             }
             acao.evidencias = Array.isArray(acao.evidencias) ? acao.evidencias : [];
+            if (typeof acao.before_image_url !== 'string') acao.before_image_url = '';
+            if (typeof acao.after_image_url !== 'string') acao.after_image_url = '';
+            if (typeof acao.implementation_completed_at !== 'string') acao.implementation_completed_at = acao.dataConclusao || '';
+            if (typeof acao.implementation_completed_by !== 'string') acao.implementation_completed_by = '';
             return acao;
         }
 
@@ -5189,6 +5197,10 @@
                     status: acaoExistente?.status || 'ABERTA',
                     reprazos: acaoExistente?.reprazos || [],
                     evidencias: acaoExistente?.evidencias || [],
+                    before_image_url: acaoExistente?.before_image_url || '',
+                    after_image_url: acaoExistente?.after_image_url || '',
+                    implementation_completed_at: acaoExistente?.implementation_completed_at || '',
+                    implementation_completed_by: acaoExistente?.implementation_completed_by || '',
                     dataConclusao: acaoExistente?.dataConclusao || ''
                 };
                 const idxAcao = state.rncs[rncIndex].d5.listaAcoes.findIndex(acao => acao.id === payload.id);
@@ -5240,7 +5252,7 @@
                 <div class="modal-content" style="max-width: 780px;" onclick="event.stopPropagation()">
                     <div class="modal-header">
                         <h2 class="modal-title">Implementação da Ação</h2>
-                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                        <button class="modal-close" id="d6-implementacao-close-btn">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="card" style="padding:1rem; margin-bottom:1rem;">
@@ -5260,27 +5272,94 @@
                                 <input type="text" id="d6-acao-reprazo-just" placeholder="${canManageDeadlines ? 'Obrigatória ao aplicar re-prazo' : 'Somente ADMIN pode alterar re-prazo'}" ${canManageDeadlines ? '' : 'disabled'}>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label>Anexo de Evidências da Implementação</label>
-                            <input type="file" id="d6-acao-evidencia-file" accept=".pdf,image/*">
-                            ${acao.evidencias?.length ? `<div style="margin-top:0.5rem; color:#475569; font-size:0.8125rem;">Evidências anexadas: ${acao.evidencias.length}</div>` : ''}
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
+                            <div class="card" style="padding:0.875rem; border:2px solid #dc2626;">
+                                <h4 style="font-weight:700; margin-bottom:0.5rem; color:#b91c1c;">Situação ANTES da Implementação</h4>
+                                <p style="font-size:0.8125rem; color:#475569; margin-bottom:0.5rem;">Evidência visual da condição antes da implementação da ação.</p>
+                                <input type="file" id="d6-acao-before-file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                                <div id="d6-before-file-name" style="margin-top:0.5rem; font-size:0.8125rem; color:#64748b;">${acao.before_image_url ? 'Imagem ANTES anexada.' : 'Sem imagem ANTES anexada.'}</div>
+                                <img id="d6-before-preview" src="${acao.before_image_url || ''}" alt="Pré-visualização ANTES" style="margin-top:0.5rem; width:100%; max-height:180px; object-fit:contain; border:1px solid #fecaca; border-radius:4px; background:#fff; ${acao.before_image_url ? '' : 'display:none;'}">
+                            </div>
+                            <div class="card" style="padding:0.875rem; border:2px solid #16a34a;">
+                                <h4 style="font-weight:700; margin-bottom:0.5rem; color:#166534;">Situação APÓS a Implementação</h4>
+                                <p style="font-size:0.8125rem; color:#475569; margin-bottom:0.5rem;">Evidência visual após a implementação da ação corretiva.</p>
+                                <input type="file" id="d6-acao-after-file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                                <div id="d6-after-file-name" style="margin-top:0.5rem; font-size:0.8125rem; color:#64748b;">${acao.after_image_url ? 'Imagem APÓS anexada.' : 'Sem imagem APÓS anexada.'}</div>
+                                <img id="d6-after-preview" src="${acao.after_image_url || ''}" alt="Pré-visualização APÓS" style="margin-top:0.5rem; width:100%; max-height:180px; object-fit:contain; border:1px solid #bbf7d0; border-radius:4px; background:#fff; ${acao.after_image_url ? '' : 'display:none;'}">
+                            </div>
                         </div>
                         <div style="display:flex; gap:1rem; flex-wrap:wrap;">
                             <button type="button" class="btn btn-secondary" id="d6-salvar-acao-btn">Salvar Alterações</button>
-                            <button type="button" class="btn btn-success" id="d6-concluir-acao-btn" ${acao.evidencias?.length ? '' : 'disabled'}>Concluir Ação</button>
+                            <button type="button" class="btn btn-success" id="d6-concluir-acao-btn" title="Anexe as evidências de antes e depois para concluir a ação." ${(acao.before_image_url && acao.after_image_url) ? '' : 'disabled'}>Concluir Ação</button>
                         </div>
                     </div>
                 </div>
             `;
-            overlay.onclick = (e) => e.target === overlay && overlay.remove();
-            document.body.appendChild(overlay);
-
-            const evidenciaInput = overlay.querySelector('#d6-acao-evidencia-file');
-            const concluirBtn = overlay.querySelector('#d6-concluir-acao-btn');
-            const atualizarEstadoConcluir = () => {
-                concluirBtn.disabled = !(acao.evidencias?.length || evidenciaInput.files?.length);
+            const closeOverlay = () => {
+                if (beforeObjectUrl) URL.revokeObjectURL(beforeObjectUrl);
+                if (afterObjectUrl) URL.revokeObjectURL(afterObjectUrl);
+                overlay.remove();
             };
-            evidenciaInput.onchange = atualizarEstadoConcluir;
+            overlay.onclick = (e) => e.target === overlay && closeOverlay();
+            document.body.appendChild(overlay);
+            overlay.querySelector('#d6-implementacao-close-btn').onclick = closeOverlay;
+
+            const beforeInput = overlay.querySelector('#d6-acao-before-file');
+            const afterInput = overlay.querySelector('#d6-acao-after-file');
+            const beforeName = overlay.querySelector('#d6-before-file-name');
+            const afterName = overlay.querySelector('#d6-after-file-name');
+            const beforePreview = overlay.querySelector('#d6-before-preview');
+            const afterPreview = overlay.querySelector('#d6-after-preview');
+            const concluirBtn = overlay.querySelector('#d6-concluir-acao-btn');
+            const extensoesPermitidas = ['jpg', 'jpeg', 'png'];
+            const mimesPermitidos = ['image/jpeg', 'image/png'];
+            let beforeObjectUrl = '';
+            let afterObjectUrl = '';
+            const arquivoImagemValido = (arquivo) => {
+                if (!arquivo) return false;
+                const ext = String(arquivo.name || '').split('.').pop().toLowerCase();
+                const mimeValido = !!arquivo.type && mimesPermitidos.includes(String(arquivo.type).toLowerCase());
+                return extensoesPermitidas.includes(ext) && mimeValido;
+            };
+            const atualizarEstadoConcluir = () => {
+                const temAntes = !!acao.before_image_url || !!beforeInput.files?.length;
+                const temDepois = !!acao.after_image_url || !!afterInput.files?.length;
+                concluirBtn.disabled = !(temAntes && temDepois);
+            };
+            beforeInput.onchange = () => {
+                if (beforeInput.files?.length && !arquivoImagemValido(beforeInput.files[0])) {
+                    alert('A imagem ANTES deve ser do tipo .jpg, .jpeg ou .png.');
+                    beforeInput.value = '';
+                    return;
+                }
+                if (beforeInput.files?.length) {
+                    if (beforeObjectUrl) URL.revokeObjectURL(beforeObjectUrl);
+                    beforeObjectUrl = URL.createObjectURL(beforeInput.files[0]);
+                    beforePreview.src = beforeObjectUrl;
+                    beforePreview.style.display = 'block';
+                    beforeName.textContent = `Arquivo selecionado: ${beforeInput.files[0].name}`;
+                } else {
+                    beforeName.textContent = acao.before_image_url ? 'Imagem ANTES anexada.' : 'Sem imagem ANTES anexada.';
+                }
+                atualizarEstadoConcluir();
+            };
+            afterInput.onchange = () => {
+                if (afterInput.files?.length && !arquivoImagemValido(afterInput.files[0])) {
+                    alert('A imagem APÓS deve ser do tipo .jpg, .jpeg ou .png.');
+                    afterInput.value = '';
+                    return;
+                }
+                if (afterInput.files?.length) {
+                    if (afterObjectUrl) URL.revokeObjectURL(afterObjectUrl);
+                    afterObjectUrl = URL.createObjectURL(afterInput.files[0]);
+                    afterPreview.src = afterObjectUrl;
+                    afterPreview.style.display = 'block';
+                    afterName.textContent = `Arquivo selecionado: ${afterInput.files[0].name}`;
+                } else {
+                    afterName.textContent = acao.after_image_url ? 'Imagem APÓS anexada.' : 'Sem imagem APÓS anexada.';
+                }
+                atualizarEstadoConcluir();
+            };
             atualizarEstadoConcluir();
 
             const aplicarAtualizacoes = async () => {
@@ -5320,15 +5399,23 @@
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
                     registrarAuditoriaAdmin('EDICAO', `Re-prazo ${numero} aplicado na ação corretiva "${acao.descricao || '-'}"`, { modulo: 'Ação Corretiva', referencia: state.rncs[rncIndex].numero, tipoAcao: 'EDICAO' });
                 }
-                if (evidenciaInput.files?.length) {
-                    const arquivo = evidenciaInput.files[0];
-                    const base64 = await lerArquivoBase64(arquivo, 'evidência da ação D6');
-                    if (base64 === null) {
-                        alert('Falha ao processar evidência. Tente novamente.');
+                if (beforeInput.files?.length) {
+                    const arquivoAntes = beforeInput.files[0];
+                    const base64Antes = await lerArquivoBase64(arquivoAntes, 'evidência ANTES da ação D6');
+                    if (base64Antes === null) {
+                        alert('Falha ao processar imagem ANTES. Tente novamente.');
                         return false;
                     }
-                    acao.evidencias = acao.evidencias || [];
-                    acao.evidencias.push({ nome: arquivo.name, conteudo: base64, data: new Date().toISOString() });
+                    acao.before_image_url = base64Antes;
+                }
+                if (afterInput.files?.length) {
+                    const arquivoDepois = afterInput.files[0];
+                    const base64Depois = await lerArquivoBase64(arquivoDepois, 'evidência APÓS da ação D6');
+                    if (base64Depois === null) {
+                        alert('Falha ao processar imagem APÓS. Tente novamente.');
+                        return false;
+                    }
+                    acao.after_image_url = base64Depois;
                 }
                 return true;
             };
@@ -5345,30 +5432,34 @@
                     referencia: state.rncs[rncIndex].numero,
                     tipoAcao: 'EDICAO'
                 });
-                overlay.remove();
+                closeOverlay();
                 render();
             };
 
             concluirBtn.onclick = async () => {
-                if (!acao.evidencias?.length && !evidenciaInput.files?.length) {
-                    alert('Anexe pelo menos uma evidência para concluir a ação.');
+                const possuiAntes = !!acao.before_image_url || !!beforeInput.files?.length;
+                const possuiDepois = !!acao.after_image_url || !!afterInput.files?.length;
+                if (!possuiAntes || !possuiDepois) {
+                    alert('Anexe as evidências ANTES e APÓS para concluir a ação.');
                     return;
                 }
                 const ok = await aplicarAtualizacoes();
                 if (!ok) return;
                 acao.status = 'CONCLUIDA';
                 acao.dataConclusao = new Date().toISOString();
+                acao.implementation_completed_at = acao.dataConclusao;
+                acao.implementation_completed_by = String(state.currentUser?.id || state.currentUser?.email || state.currentUser?.name || '');
                 acoes[acaoIndex] = acao;
                 state.selectedRNC = state.rncs[rncIndex];
                 sincronizarFluxo8D(state.selectedRNC);
                 state.activeTab = state.selectedRNC.faseAtual;
                 await salvarRNCNoFirebase(state.selectedRNC);
-                registrarAuditoriaAdmin('EDICAO', `Ação corretiva "${acao.descricao || '-'}" concluída na D6.`, {
+                registrarAuditoriaAdmin('EDICAO', `Conclusão da Implementação D6 da ação corretiva "${acao.descricao || '-'}" com evidências ANTES e APÓS anexadas.`, {
                     modulo: 'Ação Corretiva',
                     referencia: state.rncs[rncIndex].numero,
                     tipoAcao: 'EDICAO'
                 });
-                overlay.remove();
+                closeOverlay();
                 render();
             };
         }
@@ -5845,12 +5936,19 @@
             return acoes.map((acao, idx) => {
                 const evidencias = acao.evidencias || [];
                 const dataConclusao = extractAndFormatDate(acao.dataConclusao);
+                const possuiAntesDepois = !!acao.before_image_url || !!acao.after_image_url;
                 return `
                     <div class="pdf-action-block">
                         <h4>${escapeHtml(acao.descricao || `${tituloPadrao} ${idx + 1}`)}</h4>
                         <div><strong>Status:</strong> ${acao.status === 'CONCLUIDA' ? 'Concluída' : 'Em aberto'}</div>
                         <div><strong>Data de conclusão:</strong> ${acao.status === 'CONCLUIDA' ? dataConclusao : 'Não concluída'}</div>
-                        ${evidencias.length ? `
+                        ${possuiAntesDepois ? `
+                            <div class="pdf-image-grid" style="margin-top:6px;">
+                                ${renderImagemOuAnexoRelatorio('Situação ANTES da Implementação', acao.before_image_url, { variant: 'red' })}
+                                ${renderImagemOuAnexoRelatorio('Situação APÓS a Implementação', acao.after_image_url, { variant: 'green' })}
+                            </div>
+                            <div class="pdf-muted">Situação antes da implementação da ação corretiva • Situação após a implementação da ação corretiva.</div>
+                        ` : evidencias.length ? `
                             <div class="pdf-evidence-grid">
                                 ${evidencias.map((ev, eidx) => renderImagemOuAnexoRelatorio(ev.nome || `Evidência ${eidx + 1}`, ev.conteudo)).join('')}
                             </div>
