@@ -469,6 +469,48 @@
             background: #f8fafc;
             border-bottom: 2px solid #e2e8f0;
         }
+
+        .th-sort-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            border: none;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            text-transform: inherit;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .th-sort-icon {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            letter-spacing: -0.1rem;
+            transition: color 0.15s;
+        }
+
+        .th-sort-icon.active {
+            color: #1d4ed8;
+        }
+
+        .controle-status-detail {
+            display: block;
+            margin-top: 0.35rem;
+            font-size: 0.72rem;
+            color: #64748b;
+            line-height: 1.3;
+        }
+
+        .controle-status-detail.warning {
+            color: #b45309;
+            font-weight: 600;
+        }
+
+        .controle-status-detail.critical {
+            color: #b91c1c;
+            font-weight: 700;
+        }
         
         td {
             padding: 1.125rem 1rem;
@@ -1277,6 +1319,17 @@
             dashboardFilterYear: new Date().getFullYear(),
             dashboardSearch: '',
             dashboardPage: 1,
+            controleFilters: {
+                status: '',
+                setor: '',
+                conclusao: '',
+                etapas: '',
+                busca: ''
+            },
+            controleSort: {
+                key: '',
+                dir: 'asc'
+            },
             selectedRNC: null,
             activeTab: 'd1',
             activeD4SubTab: 'principal',
@@ -1780,6 +1833,7 @@
 
         function isRncEmRisco(rnc) {
             if (isEtapaConcluida(rnc, 'd8')) return false;
+            if (isPrazoTotalRncExcedido(rnc)) return true;
             const etapasAtrasadas = getEtapasEmAtraso(rnc);
             if (etapasAtrasadas.length > 0) return true;
             const acoesCorretivasAtrasadas = (rnc.d5?.listaAcoes || []).some(acao => isAcaoEmAtrasoAberta(acao, normalizeAcaoD5));
@@ -1810,6 +1864,13 @@
             const rncsProximasVencimento = [];
             const rncsEmRisco = [];
 
+            const getHistoricoPrazosReprazos = (rnc) => {
+                const faseAtual = getFaseAtualDefinida(rnc);
+                const prazoFase = rnc?.prazos?.[faseAtual];
+                const historico = [prazoFase?.original, prazoFase?.reprazo1, prazoFase?.reprazo2].filter(Boolean).map(formatDateSafe);
+                return historico.length ? historico.join(' → ') : 'Sem histórico registrado';
+            };
+
             rncsBase.forEach(rnc => {
                 const acoesCorretivas = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
                 acoesCorretivas.forEach(acao => {
@@ -1825,7 +1886,8 @@
                             descricao: acao.descricao || 'Ação sem descrição',
                             responsavel: getPessoaById(acao.responsavelId)?.nome || acao.responsavel || getResponsavelRNC(rnc),
                             prazo: prazoVigente,
-                            atrasoDias
+                            atrasoDias,
+                            historico: (acao.reprazos || []).map(item => `${formatDateSafe(item.data)} (${item.justificativa || '-'})`).join(' • ')
                         });
                     }
                 });
@@ -1844,7 +1906,8 @@
                             descricao: acao.descricao || 'Ação preventiva sem descrição',
                             responsavel: getPessoaById(acao.responsavelId)?.nome || acao.responsavel || getResponsavelRNC(rnc),
                             prazo: prazoVigente,
-                            atrasoDias
+                            atrasoDias,
+                            historico: (acao.reprazos || []).map(item => `${formatDateSafe(item.data)} (${item.justificativa || '-'})`).join(' • ')
                         });
                     }
                 });
@@ -1860,19 +1923,31 @@
                         rncId: rnc.id,
                         rncNumero: rnc.numero,
                         faseAtual: phases.find(p => p.id === rnc.faseAtual)?.name || 'Etapa em andamento',
-                        vencimento: prazoGeral
+                        vencimento: prazoGeral,
+                        historico: getHistoricoPrazosReprazos(rnc)
                     });
                 }
 
                 if (isRncEmRisco(rnc)) {
                     const etapaCritica = getEtapasEmAtraso(rnc)[0]?.phaseName || (phases.find(p => p.id === rnc.faseAtual)?.name || 'Etapa em andamento');
+                    const atrasos = getEtapasEmAtraso(rnc);
+                    const prazoTotalAtraso = isPrazoTotalRncExcedido(rnc)
+                        ? Number(diffDays(addDaysToISO(rnc.dataAbertura, PRAZO_TOTAL_RNC_DIAS), hojeISO) || 0)
+                        : 0;
                     rncsEmRisco.push({
                         rncId: rnc.id,
                         rncNumero: rnc.numero,
-                        etapaCritica
+                        etapaCritica,
+                        diasAtraso: Math.max(0, ...atrasos.map(item => Number(diffDays(item.vencimento, hojeISO) || 0)), prazoTotalAtraso),
+                        historico: getHistoricoPrazosReprazos(rnc),
+                        reprazoInfo: getGovernancaReprazoRnc(rnc).texto
                     });
                 }
             });
+
+            acoesAtrasadas.sort((a, b) => b.atrasoDias - a.atrasoDias);
+            rncsProximasVencimento.sort((a, b) => (parseISODate(a.vencimento)?.getTime() || 0) - (parseISODate(b.vencimento)?.getTime() || 0));
+            rncsEmRisco.sort((a, b) => (b.diasAtraso || 0) - (a.diasAtraso || 0));
 
             return {
                 acoesAtrasadas,
@@ -1928,17 +2003,21 @@
             return Math.max(0, Math.floor((end.getTime() - start.getTime()) / msPerDay));
         }
 
+        function addDaysToISO(dateValue, days) {
+            const parsed = parseISODate(dateValue);
+            if (!parsed) return '';
+            parsed.setDate(parsed.getDate() + Number(days || 0));
+            return parsed.toISOString().slice(0, 10);
+        }
+
         function getRNCsPeriodoAnalitico() {
             return getDashboardCompetenciaRncs();
         }
 
         function getTotalReprazosRNC(rnc) {
-            const etapas = ['d3', 'd4', 'd5', 'd6', 'd7', 'd8'];
-            return etapas.reduce((acc, etapa) => {
-                const prazoEtapa = rnc.prazos?.[etapa];
-                if (!prazoEtapa) return acc;
-                return acc + (prazoEtapa.reprazo1 ? 1 : 0) + (prazoEtapa.reprazo2 ? 1 : 0);
-            }, 0);
+            return getReprazoCountEtapas(rnc)
+                + getReprazoCountAcoes(rnc?.d5?.listaAcoes, normalizeAcaoD5)
+                + getReprazoCountAcoes(rnc?.d7?.listaAcoes, normalizeAcaoD7);
         }
 
         function getPrimeiroEUltimoPrazoRNC(rnc) {
@@ -2239,8 +2318,12 @@
         }
 
         const RNC_NUMERO_DUPLICADO_MSG = '⚠️ Já existe uma RNC cadastrada com este número. Informe um número diferente.';
-        const DIAS_ALERTA_VENCIMENTO_RNC = 3;
+        const DIAS_ALERTA_VENCIMENTO_RNC = 5;
         const CLASS_INDICADOR_ATRASO = 'red';
+        const PRAZO_TOTAL_RNC_DIAS = 30;
+        const LIMITE_NEGOCIACAO_REPRAZO = 2;
+        const PESO_CRITICIDADE_ATRASO = 1000;
+        const PESO_CRITICIDADE_PRAZO_TOTAL = 500;
 
         function existeNumeroRNCDuplicado(numero) {
             const alvo = normalizeNumeroRNC(numero);
@@ -2258,6 +2341,93 @@
         function getPrazoVigenteEtapa(prazoEtapa) {
             if (!prazoEtapa) return '';
             return prazoEtapa.reprazo2 || prazoEtapa.reprazo1 || prazoEtapa.original || '';
+        }
+
+        function getFaseAtualDefinida(rnc) {
+            if (rnc?.faseAtual && phases.some(p => p.id === rnc.faseAtual)) return rnc.faseAtual;
+            return getPrimeiraEtapaPendente(rnc) || 'd8';
+        }
+
+        function getDataReferenciaControle(rnc) {
+            const faseAtual = getFaseAtualDefinida(rnc);
+            return getPrazoVigenteEtapa(rnc?.prazos?.[faseAtual]) || '';
+        }
+
+        function getReprazoCountEtapas(rnc) {
+            return Object.values(rnc?.prazos || {}).reduce((acc, prazoEtapa) => {
+                if (!prazoEtapa) return acc;
+                return acc + (prazoEtapa.reprazo1 ? 1 : 0) + (prazoEtapa.reprazo2 ? 1 : 0);
+            }, 0);
+        }
+
+        function getReprazoCountAcoes(listaAcoes, normalizer) {
+            return (listaAcoes || []).reduce((acc, acao) => {
+                const normalizada = normalizer(acao);
+                return acc + (normalizada.reprazos?.length || 0);
+            }, 0);
+        }
+
+        function usuarioPodeNegociarReprazo() {
+            const role = String(state.currentUser?.role || '').toLowerCase();
+            const perfisGerencia = ['gerente', 'gerência', 'gerencia', 'manager', 'diretor', 'diretoria'];
+            return perfisGerencia.some(perfil => role.includes(perfil));
+        }
+
+        function registrarEscalonamentoReprazo(rnc, origem) {
+            if (!rnc) return;
+            if (!Array.isArray(rnc.escalonamentos)) rnc.escalonamentos = [];
+            const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === 'LIMITE_REPRAZO');
+            if (!jaEscalonada) {
+                rnc.escalonamentos.push({
+                    tipo: 'LIMITE_REPRAZO',
+                    origem,
+                    dataRegistro: new Date().toISOString(),
+                    totalReprazos: getTotalReprazosRNC(rnc)
+                });
+            }
+        }
+
+        function getGovernancaReprazoRnc(rnc) {
+            const total = getTotalReprazosRNC(rnc);
+            if (total >= LIMITE_NEGOCIACAO_REPRAZO) {
+                return {
+                    total,
+                    className: 'critical',
+                    texto: '⛔ Limite de re-prazos atingido. Próximo atraso será escalonado para a Gerência.'
+                };
+            }
+            if (total === 1) {
+                return {
+                    total,
+                    className: 'warning',
+                    texto: '⚠ Atenção: haverá direito apenas a mais 1 negociação de prazo.'
+                };
+            }
+            return {
+                total,
+                className: '',
+                texto: total > 0 ? `RNC já teve ${total} re-prazo${total > 1 ? 's' : ''}` : 'RNC sem re-prazo registrado'
+            };
+        }
+
+        function isPrazoTotalRncExcedido(rnc) {
+            if (!rnc?.dataAbertura || isEtapaConcluida(rnc, 'd8')) return false;
+            const abertura = parseISODate(rnc.dataAbertura);
+            if (!abertura) return false;
+            const limite = new Date(abertura);
+            limite.setDate(limite.getDate() + PRAZO_TOTAL_RNC_DIAS);
+            limite.setHours(0, 0, 0, 0);
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            return hoje.getTime() > limite.getTime();
+        }
+
+        function formatAtrasoFaseLabel(phaseId) {
+            const phase = phases.find(p => p.id === phaseId);
+            if (!phase) return `Atrasada na fase ${(String(phaseId || 'D?').toUpperCase())} – Etapa não identificada`;
+            const nome = String(phase.name || '').replace(/^D\d+\s*-\s*/i, '').trim();
+            const sufixo = nome ? ` – ${nome}` : '';
+            return `Atrasada na fase ${phase.short || String(phase.id || '').toUpperCase()}${sufixo}`;
         }
 
         function getResponsavelEtapaAtrasada(rnc, phaseId) {
@@ -2293,9 +2463,18 @@
 
         function getStatusEtapas8D(rnc) {
             const atrasos = getEtapasEmAtraso(rnc);
-            if (!atrasos.length) return { value: 'SEM_ATRASO', label: 'Sem atraso', className: 'green', detalhe: '' };
+            const faseAtual = getFaseAtualDefinida(rnc);
+            if (!atrasos.length) {
+                if (isPrazoTotalRncExcedido(rnc)) {
+                    const prazoLimite = addDaysToISO(rnc.dataAbertura, PRAZO_TOTAL_RNC_DIAS);
+                    const detalhePrazoTotal = `Prazo total da RNC (${PRAZO_TOTAL_RNC_DIAS} dias) ultrapassado desde ${formatDateSafe(prazoLimite)}.`;
+                    return { value: 'COM_ATRASO', label: formatAtrasoFaseLabel(faseAtual), className: 'red', detalhe: detalhePrazoTotal, faseAtrasoId: faseAtual };
+                }
+                return { value: 'SEM_ATRASO', label: 'Sem atraso', className: 'green', detalhe: '', faseAtrasoId: '' };
+            }
+            const faseCritica = atrasos[0];
             const detalhe = atrasos.map(item => `Etapa em atraso: ${item.phaseName} • Prazo vencido em: ${formatDateSafe(item.vencimento)} • Responsável: ${item.responsavel}`).join(' || ');
-            return { value: 'COM_ATRASO', label: 'Com atraso', className: 'red', detalhe };
+            return { value: 'COM_ATRASO', label: formatAtrasoFaseLabel(faseCritica.phaseId), className: 'red', detalhe, faseAtrasoId: faseCritica.phaseId };
         }
 
         function isRNCAtiva(rnc) {
@@ -2748,6 +2927,7 @@
                                 <div class="alerts-item-line">Ação: ${escapeHtml(alerta.descricao)}</div>
                                 <div class="alerts-item-line">Responsável: ${escapeHtml(alerta.responsavel)}</div>
                                 <div class="alerts-item-line">Prazo: ${formatDateSafe(alerta.prazo)} (Atraso: ${alerta.atrasoDias} dia${alerta.atrasoDias === 1 ? '' : 's'})</div>
+                                ${alerta.historico ? `<div class="alerts-item-line">Histórico de re-prazos: ${escapeHtml(alerta.historico)}</div>` : ''}
                             </button>
                         `).join('')}
                     </div>
@@ -2764,6 +2944,7 @@
                                 <div class="alerts-item-line">RNC: ${escapeHtml(alerta.rncNumero)}</div>
                                 <div class="alerts-item-line">Fase atual: ${escapeHtml(alerta.faseAtual)}</div>
                                 <div class="alerts-item-line">Vencimento: ${formatDateSafe(alerta.vencimento)}</div>
+                                <div class="alerts-item-line">Histórico de prazos: ${escapeHtml(alerta.historico || '-')}</div>
                             </button>
                         `).join('')}
                     </div>
@@ -2779,6 +2960,9 @@
                                 <div class="alerts-item-label">RNC em risco</div>
                                 <div class="alerts-item-line">RNC: ${escapeHtml(alerta.rncNumero)}</div>
                                 <div class="alerts-item-line">Etapa crítica: ${escapeHtml(alerta.etapaCritica)}</div>
+                                <div class="alerts-item-line">Dias em atraso: ${Number(alerta.diasAtraso || 0)}</div>
+                                <div class="alerts-item-line">Histórico de prazos: ${escapeHtml(alerta.historico || '-')}</div>
+                                <div class="alerts-item-line">${escapeHtml(alerta.reprazoInfo || '')}</div>
                             </button>
                         `).join('')}
                     </div>
@@ -2800,6 +2984,7 @@
                         <div class="alerts-popover-footer">
                             <button type="button" class="btn btn-secondary" id="fecharAlertasBtn">Fechar</button>
                             <button type="button" class="btn btn-primary" id="irControleViaAlertasBtn">Ver Controle 8D</button>
+                            <button type="button" class="btn btn-primary" id="irControleOrdenadoBtn">Ver todas ordenadas por criticidade</button>
                         </div>
                     </div>
                 </div>
@@ -3432,7 +3617,90 @@
             `;
         }
 
+        function getControleRows() {
+            const hojeIso = new Date().toISOString().slice(0, 10);
+            return state.rncs.map(rnc => {
+                const statusConclusao = getStatusConclusao8D(rnc);
+                const statusEtapas = getStatusEtapas8D(rnc);
+                const responsavel = getResponsavelRNC(rnc);
+                const statusRnc = getStatusRncValue(rnc);
+                const faseAtual = getFaseAtualDefinida(rnc);
+                const fase = phases.find(p => p.id === faseAtual) || phases[0];
+                const dataReferencia = getDataReferenciaControle(rnc);
+                const governancaReprazo = getGovernancaReprazoRnc(rnc);
+                const atrasos = getEtapasEmAtraso(rnc);
+                const maiorAtraso = Math.max(0, ...atrasos.map(item => Number(diffDays(item.vencimento, hojeIso) || 0)));
+                const criticidade = (statusEtapas.value === 'COM_ATRASO' ? PESO_CRITICIDADE_ATRASO : 0)
+                    + maiorAtraso
+                    + (isPrazoTotalRncExcedido(rnc) ? PESO_CRITICIDADE_PRAZO_TOTAL : 0);
+                return { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, faseAtual, fase, dataReferencia, governancaReprazo, criticidade };
+            });
+        }
+
+        function filtrarControleRows(rows) {
+            const filtros = state.controleFilters || {};
+            const busca = String(filtros.busca || '').trim().toLowerCase();
+            return rows.filter(item => {
+                const matchStatus = !filtros.status || item.statusRnc === filtros.status;
+                const matchSetor = !filtros.setor || item.rnc.setor === filtros.setor;
+                const matchConclusao = !filtros.conclusao || item.statusConclusao.value === filtros.conclusao;
+                const matchEtapas = !filtros.etapas || item.statusEtapas.value === filtros.etapas;
+                const textoBusca = `${item.rnc.numero} ${item.rnc.cliente} ${item.responsavel}`.toLowerCase();
+                const matchBusca = !busca || textoBusca.includes(busca);
+                return matchStatus && matchSetor && matchConclusao && matchEtapas && matchBusca;
+            });
+        }
+
+        function ordenarControleRows(rows) {
+            const sort = state.controleSort || { key: '', dir: 'asc' };
+            const phaseOrder = { d1: 1, d2: 2, d3: 3, d4: 4, d5: 5, d6: 6, d7: 7, d8: 8 };
+            const statusOrder = { COM_ATRASO: 1, SEM_ATRASO: 2 };
+            const dir = sort.dir === 'desc' ? -1 : 1;
+            const list = [...rows];
+            if (!sort.key) return list;
+            list.sort((a, b) => {
+                let av = '';
+                let bv = '';
+                if (sort.key === 'numero') {
+                    av = String(a.rnc.numero || '');
+                    bv = String(b.rnc.numero || '');
+                } else if (sort.key === 'responsavel') {
+                    av = String(a.responsavel || '');
+                    bv = String(b.responsavel || '');
+                } else if (sort.key === 'faseAtual') {
+                    av = phaseOrder[a.faseAtual] || 99;
+                    bv = phaseOrder[b.faseAtual] || 99;
+                } else if (sort.key === 'statusEtapas') {
+                    av = statusOrder[a.statusEtapas.value] || 99;
+                    bv = statusOrder[b.statusEtapas.value] || 99;
+                } else if (sort.key === 'dataReferencia') {
+                    av = parseISODate(a.dataReferencia)?.getTime() || Number.MAX_SAFE_INTEGER;
+                    bv = parseISODate(b.dataReferencia)?.getTime() || Number.MAX_SAFE_INTEGER;
+                } else if (sort.key === 'criticidade') {
+                    av = a.criticidade;
+                    bv = b.criticidade;
+                }
+                if (typeof av === 'string' || typeof bv === 'string') return String(av).localeCompare(String(bv), 'pt-BR') * dir;
+                return (av - bv) * dir;
+            });
+            return list;
+        }
+
+        function renderControleSortHeader(label, key) {
+            const sort = state.controleSort || { key: '', dir: 'asc' };
+            const isActive = sort.key === key;
+            const upActive = isActive && sort.dir === 'asc';
+            const downActive = isActive && sort.dir === 'desc';
+            return `
+                <button type="button" class="th-sort-btn controle-sort-btn" data-sort-key="${key}">
+                    <span>${label}</span>
+                    <span class="th-sort-icon ${upActive ? 'active' : ''}">▲</span><span class="th-sort-icon ${downActive ? 'active' : ''}">▼</span>
+                </button>
+            `;
+        }
+
         function renderControle() {
+            const rows = ordenarControleRows(filtrarControleRows(getControleRows()));
             return `
                 <h1 class="page-title">Controle 8D</h1>
                 <div class="card">
@@ -3441,66 +3709,70 @@
                             <label>Filtrar por Status</label>
                             <select id="controleFiltroStatus">
                                 <option value="">Todos</option>
-                                <option value="ON_TIME">No Prazo</option>
-                                <option value="AT_RISK">Em Risco</option>
+                                <option value="ON_TIME" ${state.controleFilters.status === 'ON_TIME' ? 'selected' : ''}>No Prazo</option>
+                                <option value="AT_RISK" ${state.controleFilters.status === 'AT_RISK' ? 'selected' : ''}>Em Risco</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Filtrar por Setor</label>
                             <select id="controleFiltroSetor">
                                 <option value="">Todos</option>
-                                ${[...new Set(state.rncs.map(r => r.setor))].map(setor => `<option value="${escapeHtml(setor)}">${escapeHtml(setor)}</option>`).join('')}
+                                ${[...new Set(state.rncs.map(r => r.setor))].map(setor => `<option value="${escapeHtml(setor)}" ${state.controleFilters.setor === setor ? 'selected' : ''}>${escapeHtml(setor)}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Status de Conclusão</label>
                             <select id="controleFiltroConclusao">
                                 <option value="">Todos</option>
-                                <option value="CONCLUIDO">Concluído</option>
-                                <option value="EM_ANDAMENTO">Em andamento</option>
+                                <option value="CONCLUIDO" ${state.controleFilters.conclusao === 'CONCLUIDO' ? 'selected' : ''}>Concluído</option>
+                                <option value="EM_ANDAMENTO" ${state.controleFilters.conclusao === 'EM_ANDAMENTO' ? 'selected' : ''}>Em andamento</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Situação de Etapas</label>
                             <select id="controleFiltroEtapas">
                                 <option value="">Todos</option>
-                                <option value="SEM_ATRASO">Sem atraso</option>
-                                <option value="COM_ATRASO">Com atraso</option>
+                                <option value="SEM_ATRASO" ${state.controleFilters.etapas === 'SEM_ATRASO' ? 'selected' : ''}>Sem atraso</option>
+                                <option value="COM_ATRASO" ${state.controleFilters.etapas === 'COM_ATRASO' ? 'selected' : ''}>Com atraso</option>
                             </select>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Buscar por número ou cliente</label>
-                        <input type="text" id="controleFiltroBusca" placeholder="Ex.: RNC-2026-001 ou nome do cliente">
+                        <input type="text" id="controleFiltroBusca" placeholder="Ex.: RNC-2026-001 ou nome do cliente" value="${escapeHtml(state.controleFilters.busca || '')}">
                     </div>
                 </div>
                 <div class="card">
                     <table>
                         <thead>
                             <tr>
-                                <th>Número</th>
+                                <th>${renderControleSortHeader('Número da RNC', 'numero')}</th>
                                 <th>Cliente</th>
-                                <th>Responsável</th>
-                                <th>Fase Atual</th>
+                                <th>${renderControleSortHeader('Responsável', 'responsavel')}</th>
+                                <th>${renderControleSortHeader('Fase Atual', 'faseAtual')}</th>
                                 <th>Status Conclusão</th>
-                                <th>Status Etapas</th>
+                                <th>
+                                    ${renderControleSortHeader('Status Etapas', 'statusEtapas')}
+                                    <div style="margin-top:0.25rem;">${renderControleSortHeader('Data de Referência', 'dataReferencia')}</div>
+                                </th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${state.rncs.map(rnc => {
-                                const statusConclusao = getStatusConclusao8D(rnc);
-                                const statusEtapas = getStatusEtapas8D(rnc);
-                                const responsavel = getResponsavelRNC(rnc);
-                                const statusRnc = getStatusRncValue(rnc);
+                            ${rows.map(item => {
+                                const { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, fase, governancaReprazo, dataReferencia } = item;
                                 return `
                                 <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
                                     <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${escapeHtml(responsavel)}</td>
-                                    <td><span class="badge blue">${phases.find(p => p.id === rnc.faseAtual).name}</span></td>
+                                    <td><span class="badge blue">${fase.name}</span></td>
                                     <td><span class="badge ${statusConclusao.className}">${statusConclusao.label}</span></td>
-                                    <td><span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span></td>
+                                    <td>
+                                        <span class="badge ${statusEtapas.className}" title="${escapeHtml(statusEtapas.detalhe || '')}">${statusEtapas.label}</span>
+                                        <span class="controle-status-detail">Referência: ${formatDateSafe(dataReferencia)}</span>
+                                        <span class="controle-status-detail ${governancaReprazo.className}">${governancaReprazo.total > 0 ? `RNC já teve ${governancaReprazo.total} re-prazo${governancaReprazo.total === 1 ? '' : 's'}. ` : ''}${governancaReprazo.texto}</span>
+                                    </td>
                                     <td>
                                         <button class="btn btn-primary btn-view" data-rnc-id="${rnc.id}" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                             Ver Detalhes
@@ -4317,6 +4589,12 @@
                     return false;
                 }
                 if (reprazoData) {
+                    if (getTotalReprazosRNC(state.rncs[rncIndex]) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                        registrarEscalonamentoReprazo(state.rncs[rncIndex], 'ACAO_D6');
+                        await salvarRNCNoFirebase(state.rncs[rncIndex]);
+                        alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                        return false;
+                    }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
                 }
@@ -4520,6 +4798,12 @@
                     return false;
                 }
                 if (reprazoData) {
+                    if (getTotalReprazosRNC(state.rncs[rncIndex]) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                        registrarEscalonamentoReprazo(state.rncs[rncIndex], 'ACAO_D7');
+                        await salvarRNCNoFirebase(state.rncs[rncIndex]);
+                        alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                        return false;
+                    }
                     const numero = (acao.reprazos?.length || 0) + 1;
                     acao.reprazos.push({ numero, data: reprazoData, justificativa: reprazoJust, dataRegistro: new Date().toISOString() });
                 }
@@ -5039,8 +5323,17 @@
                 e.preventDefault();
                 const novaData = document.getElementById('novaData').value;
                 const just = document.getElementById('justificativa').value;
-                
+                 
                 const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
+                const rnc = state.rncs[rncIndex];
+                if (getTotalReprazosRNC(rnc) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                    registrarEscalonamentoReprazo(rnc, `ETAPA_${phaseId.toUpperCase()}`);
+                    await salvarRNCNoFirebase(rnc);
+                    alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                    overlay.remove();
+                    render();
+                    return;
+                }
                 if (num === 1) {
                     state.rncs[rncIndex].prazos[phaseId].reprazo1 = novaData;
                     state.rncs[rncIndex].prazos[phaseId].just1 = just;
@@ -5473,26 +5766,43 @@
             const filtroBusca = document.getElementById('controleFiltroBusca');
             if (filtroStatus && filtroSetor && filtroConclusao && filtroEtapas && filtroBusca) {
                 const aplicarFiltrosControle = () => {
-                    const status = filtroStatus.value;
-                    const setor = filtroSetor.value;
-                    const conclusao = filtroConclusao.value;
-                    const etapas = filtroEtapas.value;
-                    const busca = filtroBusca.value.trim().toLowerCase();
-                    const setorEncoded = encodeURIComponent(setor);
-                    document.querySelectorAll('.controle-row').forEach(row => {
-                        const matchStatus = !status || row.dataset.status === status;
-                        const matchSetor = !setor || row.dataset.setor === setorEncoded;
-                        const matchConclusao = !conclusao || row.dataset.conclusao === conclusao;
-                        const matchEtapas = !etapas || row.dataset.etapas === etapas;
-                        const matchBusca = !busca || row.textContent.toLowerCase().includes(busca);
-                        row.style.display = matchStatus && matchSetor && matchConclusao && matchEtapas && matchBusca ? '' : 'none';
-                    });
+                    state.controleFilters.status = filtroStatus.value;
+                    state.controleFilters.setor = filtroSetor.value;
+                    state.controleFilters.conclusao = filtroConclusao.value;
+                    state.controleFilters.etapas = filtroEtapas.value;
+                    state.controleFilters.busca = filtroBusca.value;
+                    render();
                 };
                 filtroStatus.onchange = aplicarFiltrosControle;
                 filtroSetor.onchange = aplicarFiltrosControle;
                 filtroConclusao.onchange = aplicarFiltrosControle;
                 filtroEtapas.onchange = aplicarFiltrosControle;
                 filtroBusca.oninput = aplicarFiltrosControle;
+            }
+
+            document.querySelectorAll('.controle-sort-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const key = String(btn.dataset.sortKey || '');
+                    if (!key) return;
+                    if (state.controleSort.key === key) {
+                        state.controleSort.dir = state.controleSort.dir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        state.controleSort.key = key;
+                        state.controleSort.dir = 'asc';
+                    }
+                    render();
+                };
+            });
+
+            const irControleOrdenadoBtn = document.getElementById('irControleOrdenadoBtn');
+            if (irControleOrdenadoBtn) {
+                irControleOrdenadoBtn.onclick = () => {
+                    state.currentPage = 'controle';
+                    state.controleSort.key = 'criticidade';
+                    state.controleSort.dir = 'desc';
+                    state.alertsModalAberto = false;
+                    render();
+                };
             }
             
             const closeModal = document.getElementById('closeModal');
