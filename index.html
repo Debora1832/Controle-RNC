@@ -1528,13 +1528,13 @@
         ];
 
         let pessoasBase = [
-            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", email: "lucas.santos@empresa.com" },
-            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", email: "ana.costa@empresa.com" },
-            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "debora@empresa.com" },
-            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", email: "marcos.oliveira@empresa.com" },
-            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", email: "pedro.costa@empresa.com" },
-            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", email: "maria.lima@empresa.com" },
-            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", email: "joao.mendes@empresa.com" }
+            { id: 1, nome: "Lucas Santos", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta A", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "lucas.santos@empresa.com" },
+            { id: 2, nome: "Ana Costa", cargo: "Analista de Engenharia", setor: "Engenharia", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "ana.costa@empresa.com" },
+            { id: 3, nome: "Débora Silva", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "debora@empresa.com" },
+            { id: 4, nome: "Marcos Oliveira", cargo: "Analista da Qualidade", setor: "Qualidade", planta: "Planta A", gerente: "Fernanda Rocha", emailGerencia: "fernanda.rocha@empresa.com", email: "marcos.oliveira@empresa.com" },
+            { id: 5, nome: "Pedro Costa", cargo: "Responsável pela Contenção", setor: "Produção", planta: "Planta B", gerente: "Joana Almeida", emailGerencia: "joana.almeida@empresa.com", email: "pedro.costa@empresa.com" },
+            { id: 6, nome: "Maria Lima", cargo: "Analista de PCP", setor: "PCP", planta: "Planta A", gerente: "Rafael Souza", emailGerencia: "rafael.souza@empresa.com", email: "maria.lima@empresa.com" },
+            { id: 7, nome: "João Mendes", cargo: "Técnico de Processo", setor: "Processos", planta: "Planta B", gerente: "Carlos Mendes", emailGerencia: "carlos.mendes@empresa.com", email: "joao.mendes@empresa.com" }
         ];
         let modosFalhaBase = [
             { id: 1, nome: "Dimensional" },
@@ -1690,6 +1690,11 @@
             return pessoasBase.find(pessoa => pessoa.id === Number(id));
         }
 
+        function getPessoaEmailGerenciaById(id) {
+            const pessoa = getPessoaById(id);
+            return pessoa?.emailGerencia ? String(pessoa.emailGerencia).trim() : '';
+        }
+
         function getPessoasOptions() {
             return pessoasBase.map(pessoa => `
                 <option value="${pessoa.id}">${escapeHtml(pessoa.nome)} - ${escapeHtml(pessoa.cargo)} (${escapeHtml(pessoa.setor)} / ${escapeHtml(pessoa.planta)})</option>
@@ -1825,6 +1830,29 @@
             return getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || rnc.responsavel || rnc.d1?.lider || '-';
         }
 
+        function getResponsavelFase(rnc, phaseId) {
+            if (!rnc) return '-';
+            if (['d3', 'd4', 'd5'].includes(phaseId)) {
+                return getPessoaById(rnc.equipeResponsavel?.responsavelContencaoId)?.nome || getResponsavelRNC(rnc);
+            }
+            if (['d7', 'd8'].includes(phaseId)) {
+                return getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || getResponsavelRNC(rnc);
+            }
+            return getResponsavelRNC(rnc);
+        }
+
+        function getEmailGerenciaResponsavelFase(rnc, phaseId) {
+            if (!rnc) return '';
+            if (['d3', 'd4', 'd5'].includes(phaseId)) return getPessoaEmailGerenciaById(rnc.equipeResponsavel?.responsavelContencaoId);
+            if (['d7', 'd8'].includes(phaseId)) return getPessoaEmailGerenciaById(rnc.equipeResponsavel?.analistaQualidadeId);
+            return getPessoaEmailGerenciaById(rnc.equipeResponsavel?.analistaQualidadeId);
+        }
+
+        function getLabelCurtoFase(phaseId) {
+            const phase = phases.find(item => item.id === phaseId);
+            return `${phase?.short || String(phaseId || '').toUpperCase()} – ${String(phase?.name || '').replace(/^D\d+\s*-\s*/i, '').trim() || 'Etapa'}`;
+        }
+
         function isAcaoEmAtrasoAberta(acao, normalizador) {
             const acaoNormalizada = normalizador(acao);
             if (acaoNormalizada.status === 'CONCLUIDA') return false;
@@ -1872,6 +1900,7 @@
             };
 
             rncsBase.forEach(rnc => {
+                registrarEscalonamentoPrazoTotalRNC(rnc);
                 const acoesCorretivas = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5);
                 acoesCorretivas.forEach(acao => {
                     const indicador = obterIndicadorPrazoAcao(acao);
@@ -2380,16 +2409,28 @@
             return perfisGerencia.some(perfil => role.includes(perfil));
         }
 
-        function registrarEscalonamentoReprazo(rnc, origem) {
+        function registrarEscalonamentoReprazo(rnc, dados = {}) {
             if (!rnc) return;
             if (!Array.isArray(rnc.escalonamentos)) rnc.escalonamentos = [];
-            const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === 'LIMITE_REPRAZO' && item?.origem === origem);
+            const origem = String(dados.origem || 'GERAL');
+            const tipo = String(dados.tipo || 'LIMITE_REPRAZO');
+            const chave = String(dados.chave || `${tipo}:${origem}`);
+            const jaEscalonada = rnc.escalonamentos.some(item => item?.tipo === tipo && item?.chave === chave);
             if (!jaEscalonada) {
                 rnc.escalonamentos.push({
-                    tipo: 'LIMITE_REPRAZO',
+                    tipo,
                     origem,
+                    chave,
+                    faseId: dados.faseId || '',
+                    faseLabel: dados.faseLabel || '',
+                    acaoId: dados.acaoId || '',
+                    acaoDescricao: dados.acaoDescricao || '',
+                    responsavel: dados.responsavel || '',
+                    emailGerencia: dados.emailGerencia || '',
+                    mensagem: dados.mensagem || '',
                     dataRegistro: new Date().toISOString(),
-                    totalReprazos: getTotalReprazosRNC(rnc)
+                    totalReprazosFase: Number(dados.totalReprazosFase || 0),
+                    totalReprazosAcao: Number(dados.totalReprazosAcao || 0)
                 });
             }
         }
@@ -2418,8 +2459,7 @@
         }
 
         function getGovernancaReprazoFase(rnc, phaseId) {
-            const phase = phases.find(item => item.id === phaseId);
-            const faseLabel = `${phase?.short || String(phaseId || '').toUpperCase()} – ${String(phase?.name || '').replace(/^D\d+\s*-\s*/i, '').trim() || 'Etapa'}`;
+            const faseLabel = getLabelCurtoFase(phaseId);
             const total = getReprazoCountFase(rnc, phaseId);
             if (total >= LIMITE_NEGOCIACAO_REPRAZO) {
                 return {
@@ -2454,6 +2494,38 @@
             return hoje.getTime() > limite.getTime();
         }
 
+        function registrarEscalonamentoPrazoTotalRNC(rnc) {
+            if (!rnc || !isPrazoTotalRncExcedido(rnc)) return;
+            const faseAtual = getFaseAtualDefinida(rnc);
+            const faseLabel = getLabelCurtoFase(faseAtual);
+            const responsavelFase = getResponsavelFase(rnc, faseAtual);
+            const emailGerenciaFase = getEmailGerenciaResponsavelFase(rnc, faseAtual);
+            const responsavelQualidade = getPessoaById(rnc.equipeResponsavel?.analistaQualidadeId)?.nome || getResponsavelRNC(rnc);
+            const emailGerenciaQualidade = getPessoaEmailGerenciaById(rnc.equipeResponsavel?.analistaQualidadeId);
+            const mensagemFase = `⛔ Prazo total da RNC (${PRAZO_TOTAL_RNC_DIAS} dias) ultrapassado. Escalonamento para Gerência da fase atual (${faseLabel}).`;
+            const mensagemQualidade = `⛔ Prazo total da RNC (${PRAZO_TOTAL_RNC_DIAS} dias) ultrapassado. Escalonamento para Gerência da Qualidade.`;
+            registrarEscalonamentoReprazo(rnc, {
+                tipo: 'PRAZO_TOTAL_RNC',
+                origem: 'PRAZO_TOTAL_FASE',
+                chave: `PRAZO_TOTAL:FASE:${faseAtual}`,
+                faseId: faseAtual,
+                faseLabel,
+                responsavel: responsavelFase,
+                emailGerencia: emailGerenciaFase,
+                mensagem: mensagemFase
+            });
+            registrarEscalonamentoReprazo(rnc, {
+                tipo: 'PRAZO_TOTAL_RNC',
+                origem: 'PRAZO_TOTAL_QUALIDADE',
+                chave: `PRAZO_TOTAL:QUALIDADE:${faseAtual}`,
+                faseId: faseAtual,
+                faseLabel,
+                responsavel: responsavelQualidade,
+                emailGerencia: emailGerenciaQualidade,
+                mensagem: mensagemQualidade
+            });
+        }
+
         function formatAtrasoFaseLabel(phaseId) {
             const phase = phases.find(p => p.id === phaseId);
             if (!phase) return `ATRASADA NA FASE ${(String(phaseId || 'D?').toUpperCase())} – ETAPA NÃO IDENTIFICADA`;
@@ -2463,15 +2535,7 @@
         }
 
         function getResponsavelEtapaAtrasada(rnc, phaseId) {
-            if (phaseId === 'd5' || phaseId === 'd6') {
-                const acaoAberta = (rnc.d5?.listaAcoes || []).map(normalizeAcaoD5).find(acao => acao.status !== 'CONCLUIDA');
-                if (acaoAberta) return getPessoaById(acaoAberta.responsavelId)?.nome || acaoAberta.responsavel || getResponsavelRNC(rnc);
-            }
-            if (phaseId === 'd7') {
-                const acaoAberta = (rnc.d7?.listaAcoes || []).map(normalizeAcaoD7).find(acao => acao.status !== 'CONCLUIDA');
-                if (acaoAberta) return getPessoaById(acaoAberta.responsavelId)?.nome || acaoAberta.responsavel || getResponsavelRNC(rnc);
-            }
-            return getResponsavelRNC(rnc);
+            return getResponsavelFase(rnc, phaseId);
         }
 
         function getEtapasEmAtraso(rnc) {
@@ -2524,6 +2588,7 @@
                         { key: 'setor', label: 'Setor', type: 'text', required: true },
                         { key: 'planta', label: 'Planta', type: 'text', required: true },
                         { key: 'gerente', label: 'Gerente', type: 'text', required: true },
+                        { key: 'emailGerencia', label: 'E-mail da Gerência', type: 'email', required: true },
                         { key: 'email', label: 'E-mail', type: 'email', required: true }
                     ]
                 };
@@ -2760,6 +2825,10 @@
                 }
                 if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
                     alert('Informe um e-mail válido.');
+                    return;
+                }
+                if (payload.emailGerencia && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.emailGerencia)) {
+                    alert('Informe um e-mail válido no campo E-mail da Gerência.');
                     return;
                 }
                 if (payload.nome) {
@@ -4625,10 +4694,25 @@
                     return false;
                 }
                 if (reprazoData) {
-                    if (getTotalReprazosRNC(state.rncs[rncIndex]) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
-                        registrarEscalonamentoReprazo(state.rncs[rncIndex], 'ACAO_D6');
+                    const totalReprazosAcao = acao.reprazos?.length || 0;
+                    if (totalReprazosAcao >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                        const responsavelAcaoEscalonamento = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                        const emailGerenciaAcao = getPessoaEmailGerenciaById(acao.responsavelId);
+                        registrarEscalonamentoReprazo(state.rncs[rncIndex], {
+                            tipo: 'LIMITE_REPRAZO_ACAO',
+                            origem: 'ACAO_D6',
+                            chave: `ACAO_D6:${acao.id}`,
+                            faseId: 'd6',
+                            faseLabel: getLabelCurtoFase('d6'),
+                            acaoId: acao.id,
+                            acaoDescricao: acao.descricao || 'Ação sem descrição',
+                            responsavel: responsavelAcaoEscalonamento,
+                            emailGerencia: emailGerenciaAcao,
+                            totalReprazosAcao,
+                            mensagem: `⛔ Ação "${acao.descricao || 'Sem descrição'}" ultrapassou o limite de ${LIMITE_NEGOCIACAO_REPRAZO} re-prazos. Escalonamento automático para a Gerência do responsável pela ação.`
+                        });
                         await salvarRNCNoFirebase(state.rncs[rncIndex]);
-                        alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                        alert(`⛔ Ação "${acao.descricao || 'Sem descrição'}" ultrapassou o limite de ${LIMITE_NEGOCIACAO_REPRAZO} re-prazos. Escalonamento automático para a Gerência do responsável pela ação${emailGerenciaAcao ? ` (${emailGerenciaAcao})` : ''}.`);
                         return false;
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
@@ -4834,10 +4918,25 @@
                     return false;
                 }
                 if (reprazoData) {
-                    if (getTotalReprazosRNC(state.rncs[rncIndex]) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
-                        registrarEscalonamentoReprazo(state.rncs[rncIndex], 'ACAO_D7');
+                    const totalReprazosAcao = acao.reprazos?.length || 0;
+                    if (totalReprazosAcao >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
+                        const responsavelAcaoEscalonamento = getPessoaById(acao.responsavelId)?.nome || acao.responsavel || '-';
+                        const emailGerenciaAcao = getPessoaEmailGerenciaById(acao.responsavelId);
+                        registrarEscalonamentoReprazo(state.rncs[rncIndex], {
+                            tipo: 'LIMITE_REPRAZO_ACAO',
+                            origem: 'ACAO_D7',
+                            chave: `ACAO_D7:${acao.id}`,
+                            faseId: 'd7',
+                            faseLabel: getLabelCurtoFase('d7'),
+                            acaoId: acao.id,
+                            acaoDescricao: acao.descricao || 'Ação preventiva sem descrição',
+                            responsavel: responsavelAcaoEscalonamento,
+                            emailGerencia: emailGerenciaAcao,
+                            totalReprazosAcao,
+                            mensagem: `⛔ Ação "${acao.descricao || 'Sem descrição'}" ultrapassou o limite de ${LIMITE_NEGOCIACAO_REPRAZO} re-prazos. Escalonamento automático para a Gerência do responsável pela ação.`
+                        });
                         await salvarRNCNoFirebase(state.rncs[rncIndex]);
-                        alert('⛔ Limite de re-prazos atingido. Próximo atraso foi escalonado para a Gerência.');
+                        alert(`⛔ Ação "${acao.descricao || 'Sem descrição'}" ultrapassou o limite de ${LIMITE_NEGOCIACAO_REPRAZO} re-prazos. Escalonamento automático para a Gerência do responsável pela ação${emailGerenciaAcao ? ` (${emailGerenciaAcao})` : ''}.`);
                         return false;
                     }
                     const numero = (acao.reprazos?.length || 0) + 1;
@@ -5363,11 +5462,22 @@
                 const rncIndex = state.rncs.findIndex(r => r.id === state.selectedRNC.id);
                 const rnc = state.rncs[rncIndex];
                 if (getReprazoCountFase(rnc, phaseId) >= LIMITE_NEGOCIACAO_REPRAZO && !usuarioPodeNegociarReprazo()) {
-                    registrarEscalonamentoReprazo(rnc, `ETAPA_${phaseId.toUpperCase()}`);
+                    const faseLabel = getLabelCurtoFase(phaseId);
+                    const responsavelFase = getResponsavelFase(rnc, phaseId);
+                    const emailGerenciaFase = getEmailGerenciaResponsavelFase(rnc, phaseId);
+                    registrarEscalonamentoReprazo(rnc, {
+                        tipo: 'LIMITE_REPRAZO_FASE',
+                        origem: `ETAPA_${phaseId.toUpperCase()}`,
+                        chave: `ETAPA:${phaseId}`,
+                        faseId: phaseId,
+                        faseLabel,
+                        responsavel: responsavelFase,
+                        emailGerencia: emailGerenciaFase,
+                        totalReprazosFase: getReprazoCountFase(rnc, phaseId),
+                        mensagem: `⛔ Fase ${faseLabel} ultrapassou o limite de ${LIMITE_NEGOCIACAO_REPRAZO} re-prazos. Escalonamento automático para a Gerência do responsável pela fase.`
+                    });
                     await salvarRNCNoFirebase(rnc);
-                    const phase = phases.find(p => p.id === phaseId);
-                    const faseLabel = `${phase?.short || phaseId.toUpperCase()} – ${String(phase?.name || '').replace(/^D\d+\s*-\s*/i, '').trim() || 'Etapa'}`;
-                    alert(`⛔ Limite de re-prazos atingido na fase ${faseLabel}. Próximo atraso nesta fase foi escalonado para a Gerência.`);
+                    alert(`⛔ Limite de re-prazos atingido na fase ${faseLabel}. Próximo atraso nesta fase foi escalonado para a Gerência do responsável pela fase${emailGerenciaFase ? ` (${emailGerenciaFase})` : ''}.`);
                     overlay.remove();
                     render();
                     return;
