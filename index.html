@@ -1325,7 +1325,8 @@
                 setor: '',
                 conclusao: '',
                 etapas: '',
-                busca: ''
+                busca: '',
+                showExcluidas: false
             },
             controleSort: {
                 key: '',
@@ -1556,6 +1557,7 @@
             { id: 1, name: "Débora Silva", email: "debora@empresa.com", role: "Coordenadora de Qualidade", profile: "ADMIN", planta: "Matriz", initials: "DS" }
         ];
         const SENHA_PADRAO_SISTEMA = 'Magius@123';
+        const MIN_DELETE_REASON_LENGTH = 10;
         const userPasswords = { "debora@empresa.com": SENHA_PADRAO_SISTEMA };
 
         let pessoasBase = [
@@ -1601,7 +1603,8 @@
                 analytics: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>',
                 list: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
                 bell: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>',
-                report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>'
+                report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>',
+                trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>'
             };
             return icons[type] || icons.chart;
         }
@@ -1755,6 +1758,14 @@
 
         function isCurrentUserAdmin() {
             return String(state.currentUser?.profile || '').toUpperCase() === 'ADMIN';
+        }
+
+        function isRncExcluida(rnc) {
+            return String(rnc?.status || '').toUpperCase() === 'EXCLUIDA';
+        }
+
+        function isRncAtiva(rnc) {
+            return !isRncExcluida(rnc);
         }
 
         function registrarMovimentacao({ tipoAcao, modulo, referencia = '', descricao = '', usuario, perfil, data } = {}) {
@@ -1991,7 +2002,7 @@
         function getRNCsBaseAlerta() {
             const rncsFiltradas = getDashboardCompetenciaRncs();
             const base = rncsFiltradas.length ? rncsFiltradas : state.rncs;
-            return base.filter(rnc => !isEtapaConcluida(rnc, 'd8'));
+            return base.filter(rnc => isRncAtiva(rnc) && !isEtapaConcluida(rnc, 'd8'));
         }
 
         function getPrazoGeralRNC(rnc) {
@@ -2103,6 +2114,7 @@
 
         function getDashboardCompetenciaRncs() {
             return state.rncs.filter(rnc => {
+                if (!isRncAtiva(rnc)) return false;
                 if (!rnc?.dataAbertura) return false;
                 const abertura = new Date(rnc.dataAbertura);
                 if (Number.isNaN(abertura.getTime())) return false;
@@ -2119,6 +2131,7 @@
                 const month = pointDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
                 const yearShort = String(pointDate.getFullYear()).slice(-2);
                 const count = state.rncs.filter(rnc => {
+                    if (!isRncAtiva(rnc)) return false;
                     if (!rnc?.dataAbertura) return false;
                     const abertura = new Date(rnc.dataAbertura);
                     return !Number.isNaN(abertura.getTime()) &&
@@ -3089,6 +3102,10 @@
                 console.warn('Salvamento não executado. RNC inválida.');
                 return Promise.resolve(false);
             }
+            if (isRncExcluida(rnc) && !isCurrentUserAdmin()) {
+                console.warn('Salvamento de exclusão bloqueado para perfil sem permissão ADMIN.');
+                return Promise.resolve(false);
+            }
 
             return db.collection('rncs')
                 .doc(String(rnc.id))
@@ -3167,7 +3184,7 @@
                         </div>
                         <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle">
                             <span>Controle 8D</span>
-                            <span class="nav-badge">${state.rncs.filter(r => getStatusRncValue(r) === 'AT_RISK').length}</span>
+                            <span class="nav-badge">${state.rncs.filter(r => isRncAtiva(r) && getStatusRncValue(r) === 'AT_RISK').length}</span>
                         </div>
                         <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
                             <span>Cadastro de RNC</span>
@@ -4106,6 +4123,8 @@
             const filtros = state.controleFilters || {};
             const busca = String(filtros.busca || '').trim().toLowerCase();
             return rows.filter(item => {
+                const podeVerExcluidas = isCurrentUserAdmin() && !!filtros.showExcluidas;
+                if (isRncExcluida(item.rnc) && !podeVerExcluidas) return false;
                 const matchStatus = !filtros.status || item.statusRnc === filtros.status;
                 const matchSetor = !filtros.setor || item.rnc.setor === filtros.setor;
                 const matchConclusao = !filtros.conclusao || item.statusConclusao.value === filtros.conclusao;
@@ -4209,6 +4228,14 @@
                         <label>Buscar por número ou cliente</label>
                         <input type="text" id="controleFiltroBusca" placeholder="Ex.: RNC-2026-001 ou nome do cliente" value="${escapeHtml(state.controleFilters.busca || '')}">
                     </div>
+                    ${isCurrentUserAdmin() ? `
+                        <div class="form-group" style="margin-top:0.75rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="checkbox" id="controleFiltroExcluidas" ${state.controleFilters.showExcluidas ? 'checked' : ''}>
+                                Mostrar RNCs excluídas
+                            </label>
+                        </div>
+                    ` : ''}
                 </div>
                 <div class="card">
                     <table>
@@ -4230,7 +4257,7 @@
                                 const { rnc, statusConclusao, statusEtapas, responsavel, statusRnc, fase, governancaReprazo, dataReferencia, dataAbertura } = item;
                                 return `
                                 <tr class="controle-row" data-status="${statusRnc}" data-conclusao="${statusConclusao.value}" data-etapas="${statusEtapas.value}" data-setor="${encodeURIComponent(rnc.setor)}">
-                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}</td>
+                                    <td style="font-weight: 700; color: #1e40af;">${rnc.numero}${isRncExcluida(rnc) ? ' <span class="badge red" style="margin-left:0.4rem;">🗑️ RNC EXCLUÍDA</span>' : ''}</td>
                                     <td>${formatDateSafe(dataAbertura)}</td>
                                     <td>${rnc.cliente}</td>
                                     <td>${escapeHtml(responsavel)}</td>
@@ -4682,6 +4709,11 @@
                 const d8Readonly = rnc.d8.concluida ? 'readonly disabled' : '';
                 const dataConclusaoD8 = /^\d{4}-\d{2}-\d{2}/.test(rnc.d8.dataConclusao || '') ? rnc.d8.dataConclusao.slice(0, 10) : '';
                 content += `
+                    ${isCurrentUserAdmin() && !isRncExcluida(rnc) ? `
+                        <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem;">
+                            <button type="button" class="btn btn-danger" onclick="abrirModalExcluirRNC()">${renderIcon('trash')} Excluir RNC</button>
+                        </div>
+                    ` : ''}
                     <div class="card" style="padding:1rem; margin-bottom:1rem;">
                         <h4 style="font-weight:700; margin-bottom:0.75rem;">Lições Aprendidas</h4>
                         <div class="form-group" style="margin-bottom:0;">
@@ -5456,6 +5488,121 @@
                 ? (concluir ? 'D8 concluído e 8D encerrado com sucesso!' : 'D8 salvo com sucesso!')
                 : (concluir ? 'D8 concluído localmente. Firebase indisponível.' : 'D8 salvo localmente. Firebase indisponível.'));
             render();
+        }
+
+        function canConfirmDeleteRNC(reason, accepted) {
+            return String(reason || '').trim().length >= MIN_DELETE_REASON_LENGTH && !!accepted;
+        }
+
+        function abrirModalExcluirRNC() {
+            if (!isCurrentUserAdmin()) {
+                alert('Apenas ADMIN pode excluir RNC.');
+                return;
+            }
+            const rnc = state.selectedRNC;
+            if (!rnc) return;
+            if (isRncExcluida(rnc)) {
+                alert('Esta RNC já está marcada como excluída.');
+                return;
+            }
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay active';
+            overlay.style.zIndex = '1003';
+            overlay.innerHTML = `
+                <div class="modal-content" style="max-width:700px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title" style="color:#b91c1c;">Excluir RNC – ação de bloqueio operacional</h2>
+                        <button class="modal-close" type="button" data-close-delete-rnc>×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="margin-bottom:0.75rem;">
+                            Esta ação marcará a RNC <strong>${escapeHtml(rnc.numero)}</strong> – <strong>${escapeHtml(rnc.cliente)}</strong> como excluída para operação.
+                        </p>
+                        <p style="margin-bottom:1rem; color:#7f1d1d;">
+                            A RNC ficará oculta das visões padrão, mantendo histórico e anexos para auditoria. Deseja continuar?
+                        </p>
+                        <div class="form-group">
+                            <label for="deleteRncReason">Motivo da exclusão <span style="color:#dc2626;">*</span></label>
+                            <textarea id="deleteRncReason" rows="4" placeholder="Informe o motivo da exclusão (mínimo de ${MIN_DELETE_REASON_LENGTH} caracteres)"></textarea>
+                        </div>
+                        <label style="display:flex; align-items:center; gap:0.5rem; margin:0.75rem 0;">
+                            <input type="checkbox" id="deleteRncConfirmCheck">
+                            Estou ciente de que esta ação não poderá ser desfeita
+                        </label>
+                        <p id="deleteRncFeedback" style="display:none; margin-top:0.5rem; color:#dc2626; font-size:0.875rem;"></p>
+                    </div>
+                    <div style="display:flex; gap:0.75rem; justify-content:flex-end; padding:1rem 1.5rem; border-top:1px solid #e2e8f0;">
+                        <button type="button" class="btn btn-secondary" data-close-delete-rnc>Cancelar</button>
+                        <button type="button" class="btn btn-danger" id="confirmDeleteRncBtn" disabled>Confirmar exclusão</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            const reasonInput = overlay.querySelector('#deleteRncReason');
+            const checkInput = overlay.querySelector('#deleteRncConfirmCheck');
+            const confirmBtn = overlay.querySelector('#confirmDeleteRncBtn');
+            const feedback = overlay.querySelector('#deleteRncFeedback');
+            const close = () => overlay.remove();
+            const updateState = () => {
+                const motivo = String(reasonInput?.value || '').trim();
+                const aceitou = !!checkInput?.checked;
+                confirmBtn.disabled = !canConfirmDeleteRNC(motivo, aceitou);
+            };
+            overlay.querySelectorAll('[data-close-delete-rnc]').forEach(btn => btn.onclick = close);
+            overlay.onclick = (event) => {
+                if (event.target === overlay) close();
+            };
+            reasonInput.oninput = updateState;
+            checkInput.onchange = updateState;
+            confirmBtn.onclick = async () => {
+                const motivo = String(reasonInput.value || '').trim();
+                if (!canConfirmDeleteRNC(motivo, checkInput.checked)) {
+                    if (feedback) {
+                        feedback.style.display = 'block';
+                        feedback.textContent = `Preencha o motivo (mínimo ${MIN_DELETE_REASON_LENGTH} caracteres) e confirme ciência para continuar.`;
+                    }
+                    return;
+                }
+                await excluirRNCSelecionada(motivo);
+                close();
+            };
+        }
+
+        async function excluirRNCSelecionada(motivoExclusao) {
+            if (!isCurrentUserAdmin()) {
+                alert('Apenas ADMIN pode excluir RNC.');
+                return;
+            }
+            const rnc = state.selectedRNC;
+            if (!rnc) return;
+            const rncIndex = state.rncs.findIndex(item => item.id === rnc.id);
+            if (rncIndex === -1) return;
+            const motivo = String(motivoExclusao || '').trim();
+            if (!canConfirmDeleteRNC(motivo, true)) {
+                alert(`Informe um motivo de exclusão com no mínimo ${MIN_DELETE_REASON_LENGTH} caracteres.`);
+                return;
+            }
+
+            const timestamp = new Date().toISOString();
+            state.rncs[rncIndex].status = 'EXCLUIDA';
+            state.rncs[rncIndex].deleted_at = timestamp;
+            state.rncs[rncIndex].deleted_by = state.currentUser?.id || null;
+            state.rncs[rncIndex].deleted_reason = motivo;
+
+            const salvoNoFirebase = await salvarRNCNoFirebase(state.rncs[rncIndex]);
+            registrarMovimentacao({
+                tipoAcao: 'EXCLUSAO',
+                modulo: 'RNC',
+                referencia: state.rncs[rncIndex].numero,
+                descricao: `Exclusão lógica da RNC. Motivo: ${motivo}`,
+                usuario: state.currentUser?.name || '',
+                perfil: state.currentUser?.profile || ''
+            });
+
+            state.currentPage = 'controle';
+            state.selectedRNC = null;
+            render();
+            alert(salvoNoFirebase ? 'RNC excluída com sucesso.' : 'RNC excluída localmente. Falha ao salvar no Firebase agora.');
         }
 
         function isDataUrlImagem(data) {
@@ -6494,6 +6641,7 @@
             const filtroConclusao = document.getElementById('controleFiltroConclusao');
             const filtroEtapas = document.getElementById('controleFiltroEtapas');
             const filtroBusca = document.getElementById('controleFiltroBusca');
+            const filtroExcluidas = document.getElementById('controleFiltroExcluidas');
             if (filtroStatus && filtroSetor && filtroConclusao && filtroEtapas && filtroBusca) {
                 const aplicarFiltrosControle = () => {
                     state.controleFilters.status = filtroStatus.value;
@@ -6501,6 +6649,7 @@
                     state.controleFilters.conclusao = filtroConclusao.value;
                     state.controleFilters.etapas = filtroEtapas.value;
                     state.controleFilters.busca = filtroBusca.value;
+                    state.controleFilters.showExcluidas = !!filtroExcluidas?.checked;
                     render();
                 };
                 filtroStatus.onchange = aplicarFiltrosControle;
@@ -6508,6 +6657,7 @@
                 filtroConclusao.onchange = aplicarFiltrosControle;
                 filtroEtapas.onchange = aplicarFiltrosControle;
                 filtroBusca.oninput = aplicarFiltrosControle;
+                if (filtroExcluidas) filtroExcluidas.onchange = aplicarFiltrosControle;
             }
 
             document.querySelectorAll('.controle-sort-btn').forEach(btn => {
