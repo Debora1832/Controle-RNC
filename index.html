@@ -30,17 +30,54 @@
             overflow-y: auto;
             box-shadow: 4px 0 24px rgba(11, 31, 58, 0.25);
             z-index: 100;
+            transition: width 0.25s ease, transform 0.25s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 72px;
         }
         
         .sidebar-header {
             padding: 2rem 1.5rem;
             background: rgba(255, 255, 255, 0.04);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            flex-direction: column;
+            gap: 0.5rem;
         }
         
         .sidebar-header h2 {
             font-size: 1.5rem;
             font-weight: 800;
+        }
+
+        .menu-toggle-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .menu-toggle-btn:focus-visible,
+        .nav-item:focus-visible {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .sidebar.collapsed .sidebar-header h2 {
+            display: none;
+        }
+
+        .sidebar.collapsed .sidebar-header {
+            align-items: center;
         }
         
         .user-info {
@@ -77,6 +114,23 @@
             gap: 0.875rem;
             transition: all 0.25s;
             font-weight: 500;
+            position: relative;
+        }
+
+        .nav-icon {
+            display: inline-flex;
+            width: 20px;
+            height: 20px;
+            color: #dbeafe;
+            flex: 0 0 20px;
+        }
+
+        .nav-label {
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .nav-label {
+            display: none;
         }
         
         .nav-item:hover {
@@ -98,11 +152,38 @@
             font-size: 0.75rem;
             font-weight: 700;
         }
+
+        .sidebar.collapsed .nav-badge {
+            position: absolute;
+            right: 6px;
+            top: 6px;
+            margin-left: 0;
+            padding: 0.2rem 0.45rem;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+        }
         
         /* MAIN CONTENT */
         .main-content {
             margin-left: 280px;
             min-height: 100vh;
+            transition: margin-left 0.25s ease;
+        }
+
+        .main-content.sidebar-collapsed {
+            margin-left: 72px;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.42);
+            z-index: 90;
         }
         
         .top-bar {
@@ -123,6 +204,19 @@
             align-items: center;
             gap: 1rem;
             min-width: 0;
+        }
+
+        .top-menu-btn {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
 
         .top-logo {
@@ -1239,6 +1333,24 @@
         
         /* Responsive */
         @media (max-width: 768px) {
+            .top-menu-btn {
+                display: inline-flex;
+            }
+
+            .sidebar.mobile {
+                width: 280px;
+                transform: translateX(-100%);
+            }
+
+            .sidebar.mobile.open {
+                transform: translateX(0);
+            }
+
+            .main-content,
+            .main-content.sidebar-collapsed {
+                margin-left: 0;
+            }
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
@@ -1280,6 +1392,11 @@
             console.warn('Falha ao inicializar Firebase:', error);
         }
 
+        const SIDEBAR_STATE_KEY = 'magius-sidebar-collapsed';
+        const SIDEBAR_COLLAPSED_VALUE = '1';
+        const SIDEBAR_EXPANDED_VALUE = '0';
+        const SIDEBAR_AUTO_COLLAPSE_BREAKPOINT = 1024;
+
         // ESTADO GLOBAL
         let state = {
             currentPage: 'login',
@@ -1320,6 +1437,16 @@
             dashboardFilterYear: new Date().getFullYear(),
             dashboardSearch: '',
             dashboardPage: 1,
+            sidebarCollapsed: (() => {
+                try {
+                    const persisted = localStorage.getItem(SIDEBAR_STATE_KEY);
+                    if (persisted !== null) return persisted === SIDEBAR_COLLAPSED_VALUE;
+                } catch (error) {
+                    console.warn('Falha ao ler estado do menu lateral:', error);
+                }
+                return window.innerWidth <= SIDEBAR_AUTO_COLLAPSE_BREAKPOINT;
+            })(),
+            mobileMenuOpen: false,
             controleFilters: {
                 status: '',
                 setor: '',
@@ -1604,7 +1731,14 @@
                 list: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
                 bell: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 0 0 6 0"/></svg>',
                 report: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>',
-                trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>'
+                trash: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+                menu: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>',
+                dashboard: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg>',
+                control: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="12" cy="12" r="9"/></svg>',
+                register: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3h8"/><path d="M9 3v4"/><path d="M15 3v4"/><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M8 12h8"/><path d="M8 16h6"/></svg>',
+                base: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
+                logs: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h12"/><path d="M8 12h12"/><path d="M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+                logout: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>'
             };
             return icons[type] || icons.chart;
         }
@@ -1758,6 +1892,29 @@
 
         function isCurrentUserAdmin() {
             return String(state.currentUser?.profile || '').toUpperCase() === 'ADMIN';
+        }
+
+        function isMobileView() {
+            return window.innerWidth <= 768;
+        }
+
+        function persistSidebarState() {
+            try {
+                localStorage.setItem(SIDEBAR_STATE_KEY, state.sidebarCollapsed ? SIDEBAR_COLLAPSED_VALUE : SIDEBAR_EXPANDED_VALUE);
+            } catch (error) {
+                console.warn('Falha ao persistir estado do menu lateral:', error);
+            }
+        }
+
+        function toggleSidebar() {
+            if (isMobileView()) {
+                state.mobileMenuOpen = !state.mobileMenuOpen;
+                render();
+                return;
+            }
+            state.sidebarCollapsed = !state.sidebarCollapsed;
+            persistSidebarState();
+            render();
         }
 
         function isRncExcluida(rnc) {
@@ -3129,7 +3286,8 @@
             } else {
                 app.innerHTML = `
                     ${renderSidebar()}
-                    <div class="main-content">
+                    ${isMobileView() && state.mobileMenuOpen ? '<div class="sidebar-backdrop" id="sidebarBackdrop"></div>' : ''}
+                    <div class="main-content ${state.sidebarCollapsed ? 'sidebar-collapsed' : ''}">
                         ${renderTopBar()}
                         <div class="content-area">
                             ${state.currentPage === 'dashboard' ? renderDashboard() : ''}
@@ -3173,35 +3331,55 @@
         }
 
         function renderSidebar() {
+            const collapsed = state.sidebarCollapsed && !isMobileView();
+            const sidebarClasses = [
+                'sidebar',
+                collapsed ? 'collapsed' : '',
+                isMobileView() ? 'mobile' : '',
+                isMobileView() && state.mobileMenuOpen ? 'open' : ''
+            ].filter(Boolean).join(' ');
+            const toggleTitle = isMobileView()
+                ? (state.mobileMenuOpen ? 'Fechar menu' : 'Expandir menu')
+                : (collapsed ? 'Expandir menu' : 'Recolher menu');
             return `
-                <div class="sidebar">
+                <div class="${sidebarClasses}">
                     <div class="sidebar-header">
                         <h2>MAGIUS • 8D</h2>
+                        <button type="button" class="menu-toggle-btn" id="toggleSidebarBtn" title="${toggleTitle}" aria-label="${toggleTitle}" aria-expanded="${collapsed ? 'false' : 'true'}">
+                            ${renderIcon('menu')}
+                        </button>
                     </div>
                     <div class="nav-menu">
-                        <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard">
-                            <span>Dashboard</span>
+                        <div class="nav-item ${state.currentPage === 'dashboard' ? 'active' : ''}" data-page="dashboard" title="Dashboard" aria-label="Dashboard" tabindex="0">
+                            <span class="nav-icon">${renderIcon('dashboard')}</span>
+                            <span class="nav-label">Dashboard</span>
                         </div>
-                        <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle">
-                            <span>Controle 8D</span>
+                        <div class="nav-item ${state.currentPage === 'controle' ? 'active' : ''}" data-page="controle" title="Controle 8D" aria-label="Controle 8D" tabindex="0">
+                            <span class="nav-icon">${renderIcon('control')}</span>
+                            <span class="nav-label">Controle 8D</span>
                             <span class="nav-badge">${state.rncs.filter(r => isRncAtiva(r) && getStatusRncValue(r) === 'AT_RISK').length}</span>
                         </div>
-                        <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc">
-                            <span>Cadastro de RNC</span>
+                        <div class="nav-item ${state.currentPage === 'cadastro-rnc' ? 'active' : ''}" data-page="cadastro-rnc" title="Cadastro de RNC" aria-label="Cadastro de RNC" tabindex="0">
+                            <span class="nav-icon">${renderIcon('register')}</span>
+                            <span class="nav-label">Cadastro de RNC</span>
                         </div>
                         ${isCurrentUserAdmin() ? `
-                            <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin">
-                                <span>Cadastro Base</span>
+                            <div class="nav-item ${state.currentPage === 'admin' || state.currentPage === 'cadastro-pessoas' ? 'active' : ''}" data-page="admin" title="Cadastro Base" aria-label="Cadastro Base" tabindex="0">
+                                <span class="nav-icon">${renderIcon('base')}</span>
+                                <span class="nav-label">Cadastro Base</span>
                             </div>
-                            <div class="nav-item ${state.currentPage === 'movimentacoes' ? 'active' : ''}" data-page="movimentacoes">
-                                <span>Movimentações</span>
+                            <div class="nav-item ${state.currentPage === 'movimentacoes' ? 'active' : ''}" data-page="movimentacoes" title="Movimentações" aria-label="Movimentações" tabindex="0">
+                                <span class="nav-icon">${renderIcon('logs')}</span>
+                                <span class="nav-label">Movimentações</span>
                             </div>
                         ` : ''}
-                        <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios">
-                            <span>Relatórios</span>
+                        <div class="nav-item ${state.currentPage === 'relatorios' ? 'active' : ''}" data-page="relatorios" title="Relatórios" aria-label="Relatórios" tabindex="0">
+                            <span class="nav-icon">${renderIcon('report')}</span>
+                            <span class="nav-label">Relatórios</span>
                         </div>
-                        <div class="nav-item" data-page="logout" style="margin-top: 2rem; color: #ef4444;">
-                            <span>Sair</span>
+                        <div class="nav-item" data-page="logout" title="Sair" aria-label="Sair" tabindex="0" style="margin-top: 2rem; color: #ef4444;">
+                            <span class="nav-icon">${renderIcon('logout')}</span>
+                            <span class="nav-label">Sair</span>
                         </div>
                     </div>
                 </div>
@@ -3213,6 +3391,9 @@
             return `
                 <div class="top-bar">
                     <div class="top-brand">
+                        <button class="top-menu-btn" id="mobileSidebarBtn" type="button" title="Expandir menu" aria-label="Expandir menu">
+                            ${renderIcon('menu')}
+                        </button>
                         <div class="top-logo">MAGIUS</div>
                         <div class="top-institutional">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
                     </div>
@@ -6161,7 +6342,7 @@
             }
             
             document.querySelectorAll('.nav-item').forEach(item => {
-                item.onclick = () => {
+                const handleNavSelection = () => {
                     const page = item.dataset.page;
                     if (page === 'logout') {
                         if (confirm('Sair?')) {
@@ -6173,6 +6354,7 @@
                             });
                             state.currentUser = null;
                             state.currentPage = 'login';
+                            state.mobileMenuOpen = false;
                             render();
                         }
                     } else if (page) {
@@ -6181,11 +6363,40 @@
                             return;
                         }
                         state.currentPage = page;
+                        state.mobileMenuOpen = false;
                         render();
                     }
                 };
+                item.onclick = handleNavSelection;
+                item.onkeydown = (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleNavSelection();
+                    }
+                };
             });
-            
+
+            const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+            if (toggleSidebarBtn) {
+                toggleSidebarBtn.onclick = toggleSidebar;
+            }
+
+            const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+            if (sidebarBackdrop) {
+                sidebarBackdrop.onclick = () => {
+                    state.mobileMenuOpen = false;
+                    render();
+                };
+            }
+
+            const mobileSidebarBtn = document.getElementById('mobileSidebarBtn');
+            if (mobileSidebarBtn) {
+                mobileSidebarBtn.onclick = () => {
+                    state.mobileMenuOpen = true;
+                    render();
+                };
+            }
+
             document.querySelectorAll('.rnc-row').forEach(row => {
                 row.onclick = () => {
                     state.selectedRNC = state.rncs.find(r => r.id == row.dataset.rncId);
@@ -6901,6 +7112,18 @@
         async function initApp() {
             await carregarCadastrosBaseDoFirebase();
             await carregarRNCsDoFirebase();
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && state.mobileMenuOpen) {
+                    state.mobileMenuOpen = false;
+                    render();
+                }
+            });
+            window.addEventListener('resize', () => {
+                if (!isMobileView() && state.mobileMenuOpen) {
+                    state.mobileMenuOpen = false;
+                    render();
+                }
+            });
             render();
         }
 
