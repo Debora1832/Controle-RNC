@@ -3949,7 +3949,22 @@
             const total = rncsCompetencia.length;
             const noPrazo = rncsCompetencia.filter(r => getStatusRncValue(r) === "ON_TIME").length;
             const emRisco = rncsCompetencia.filter(r => getStatusRncValue(r) === "AT_RISK").length;
-            
+
+            // KPIs de reclamação (cadastro da RNC)
+            const volumeReclamacaoCliente = rncsCompetencia.filter(r => String(r.origemReclamacao || '').toLowerCase() === 'cliente').length;
+            const volumeReclamacaoInterna = rncsCompetencia.filter(r => String(r.origemReclamacao || '').toLowerCase() === 'interna').length;
+            const volumePorPlantaCausadora = rncsCompetencia.reduce((acc, r) => {
+                const planta = String(r.plantaCausadora || '').trim();
+                if (!planta) return acc;
+                acc[planta] = (acc[planta] || 0) + 1;
+                return acc;
+            }, {});
+            const plantasOrdem = ['Matriz', 'Filial', 'MG'];
+            const plantaResumo = plantasOrdem.map(planta => `${planta}: ${volumePorPlantaCausadora[planta] || 0}`).join(' • ');
+            const plantaTop = Object.entries(volumePorPlantaCausadora).sort((a, b) => b[1] - a[1])[0] || [];
+            const plantaTopNome = plantaTop[0] || '—';
+            const plantaTopVolume = plantaTop[1] || 0;
+             
             // Cálculos Lean
             const taxaNoPrazo = total > 0 ? ((noPrazo / total) * 100).toFixed(1) : 0;
             const rncsComReprazo = rncsCompetencia.filter(r => {
@@ -4077,7 +4092,38 @@
                         <div class="stat-comparison">vs mês anterior</div>
                     </div>
                 </div>
-                
+
+                <div class="section-title" style="margin-top: 1.5rem;"><span class="section-title-icon">${renderIcon('metrics')}</span> KPIs de Reclamação</div>
+                <div class="lean-metrics-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                    <div class="stat-card fade-in-up">
+                        <div class="stat-header">
+                            <div class="stat-icon">${renderIcon('alert')}</div>
+                        </div>
+                        <div class="stat-label">Reclamações no Cliente</div>
+                        <div class="stat-value" style="font-size: 2.5rem;">${volumeReclamacaoCliente}</div>
+                        <div class="stat-comparison">No período selecionado</div>
+                    </div>
+
+                    <div class="stat-card fade-in-up">
+                        <div class="stat-header">
+                            <div class="stat-icon">${renderIcon('check')}</div>
+                        </div>
+                        <div class="stat-label">Reclamações Internas</div>
+                        <div class="stat-value" style="font-size: 2.5rem;">${volumeReclamacaoInterna}</div>
+                        <div class="stat-comparison">No período selecionado</div>
+                    </div>
+
+                    <div class="stat-card fade-in-up">
+                        <div class="stat-header">
+                            <div class="stat-icon">${renderIcon('base')}</div>
+                        </div>
+                        <div class="stat-label">Planta Causadora (Top)</div>
+                        <div class="stat-value" style="font-size: 2.5rem;">${plantaTopVolume}</div>
+                        <div class="stat-trend neutral"><span>${escapeHtml(plantaTopNome)}</span></div>
+                        <div class="stat-comparison">${escapeHtml(plantaResumo || 'Matriz: 0 • Filial: 0 • MG: 0')}</div>
+                    </div>
+                </div>
+                 
                 <!-- Métricas Lean -->
                 <div class="section-title" style="margin-top: 2rem;"><span class="section-title-icon">${renderIcon('metrics')}</span> Métricas Lean</div>
                 <div class="lean-metrics-grid">
@@ -4299,30 +4345,47 @@
                             <input type="text" name="numeroRnc" id="numeroRncInput" placeholder="Ex.: RNC-2026-001" required>
                             <p id="numeroRncValidacao" aria-live="polite" style="font-size: 0.8125rem; color: #dc2626; margin-top: 0.45rem; display:none;"></p>
                         </div>
-                        <div class="grid-2">
-                            <div class="form-group">
-                                <label>Cliente</label>
-                                <select name="cliente" required>
-                                    <option value="">Selecione</option>
-                                    ${getClientesAtivos().map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Código da Peça</label>
-                                <input type="text" name="codigoPeca" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo de Falha</label>
-                                <select name="tipoFalha" required>
-                                    <option value="">Selecione</option>
-                                    ${getModosFalhaAtivos().map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Setor</label>
-                                <select name="setor" required>
-                                    <option value="">Selecione</option>
-                                    <option value="Usinagem">Usinagem</option>
+                         <div class="grid-2">
+                             <div class="form-group">
+                                 <label>Cliente</label>
+                                 <select name="cliente" required>
+                                     <option value="">Selecione</option>
+                                     ${getClientesAtivos().map(cliente => `<option value="${escapeHtml(cliente.nome)}">${escapeHtml(cliente.nome)}</option>`).join('')}
+                                 </select>
+                             </div>
+                             <div class="form-group">
+                                 <label>Planta Causadora</label>
+                                 <select name="plantaCausadora" required>
+                                     <option value="">Selecione</option>
+                                     <option value="Matriz">Matriz</option>
+                                     <option value="Filial">Filial</option>
+                                     <option value="MG">MG</option>
+                                 </select>
+                             </div>
+                             <div class="form-group">
+                                 <label>Código da Peça</label>
+                                 <input type="text" name="codigoPeca" required>
+                             </div>
+                             <div class="form-group">
+                                 <label>Tipo de Falha</label>
+                                 <select name="tipoFalha" required>
+                                     <option value="">Selecione</option>
+                                     ${getModosFalhaAtivos().map(modo => `<option value="${escapeHtml(modo.nome)}">${escapeHtml(modo.nome)}</option>`).join('')}
+                                 </select>
+                             </div>
+                             <div class="form-group">
+                                 <label>Origem da Reclamação</label>
+                                 <select name="origemReclamacao" required>
+                                     <option value="">Selecione</option>
+                                     <option value="Interna">Interna</option>
+                                     <option value="Cliente">Cliente</option>
+                                 </select>
+                             </div>
+                             <div class="form-group">
+                                 <label>Setor</label>
+                                 <select name="setor" required>
+                                     <option value="">Selecione</option>
+                                     <option value="Usinagem">Usinagem</option>
                                     <option value="Pintura">Pintura</option>
                                     <option value="Montagem">Montagem</option>
                                     <option value="Acabamento">Acabamento</option>
@@ -4907,20 +4970,28 @@
                 content += `
                     <div class="card" style="padding:1rem; margin-top:0.5rem;">
                         <h4 style="font-weight:700; margin-bottom:0.75rem;">Dados do Cadastro da RNC</h4>
-                        <div class="grid-2">
-                            <div class="form-group">
-                                <label>Cliente</label>
-                                <input type="text" value="${escapeHtml(rnc.cliente || '')}" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label>Modo de Falha</label>
-                                <input type="text" value="${escapeHtml(rnc.tipoFalha || '')}" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label>Quantidade de Peças</label>
-                                <input type="text" value="${escapeHtml(rnc.quantidade ?? '')}" readonly>
-                            </div>
-                        </div>
+                         <div class="grid-2">
+                             <div class="form-group">
+                                 <label>Cliente</label>
+                                 <input type="text" value="${escapeHtml(rnc.cliente || '')}" readonly>
+                             </div>
+                             <div class="form-group">
+                                 <label>Planta Causadora</label>
+                                 <input type="text" value="${escapeHtml(rnc.plantaCausadora || '')}" readonly>
+                             </div>
+                             <div class="form-group">
+                                 <label>Modo de Falha</label>
+                                 <input type="text" value="${escapeHtml(rnc.tipoFalha || '')}" readonly>
+                             </div>
+                             <div class="form-group">
+                                 <label>Origem da Reclamação</label>
+                                 <input type="text" value="${escapeHtml(rnc.origemReclamacao || '')}" readonly>
+                             </div>
+                             <div class="form-group">
+                                 <label>Quantidade de Peças</label>
+                                 <input type="text" value="${escapeHtml(rnc.quantidade ?? '')}" readonly>
+                             </div>
+                         </div>
                         <div class="d2-image-layout">
                             <div class="d2-image-card green">
                                 ${fotoConformeSrc
@@ -6535,14 +6606,16 @@
                     </div>
                     <section class="pdf-page">
                         ${renderPdfHeader()}
-                        <div class="pdf-grid">
-                            <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
-                            <div><strong>Produto / Processo:</strong> ${escapeHtml(rnc.setor || '-')}</div>
-                            <div><strong>Planta:</strong> ${escapeHtml(plantaRnc)}</div>
-                            <div><strong>Data de abertura:</strong> ${formatDateSafe(rnc.dataAbertura)}</div>
-                            <div><strong>Data de encerramento:</strong> ${extractAndFormatDate(rnc.d8?.dataConclusao)}</div>
-                            <div><strong>Responsável pela RNC:</strong> ${escapeHtml(responsavelRnc)}</div>
-                        </div>
+                         <div class="pdf-grid">
+                             <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
+                             <div><strong>Produto / Processo:</strong> ${escapeHtml(rnc.setor || '-')}</div>
+                             <div><strong>Planta:</strong> ${escapeHtml(plantaRnc)}</div>
+                             <div><strong>Planta causadora:</strong> ${escapeHtml(rnc.plantaCausadora || '-')}</div>
+                             <div><strong>Data de abertura:</strong> ${formatDateSafe(rnc.dataAbertura)}</div>
+                             <div><strong>Data de encerramento:</strong> ${extractAndFormatDate(rnc.d8?.dataConclusao)}</div>
+                             <div><strong>Responsável pela RNC:</strong> ${escapeHtml(responsavelRnc)}</div>
+                             <div><strong>Origem da reclamação:</strong> ${escapeHtml(rnc.origemReclamacao || '-')}</div>
+                         </div>
                         <div class="pdf-muted">Data de geração: ${dataGeracao}</div>
                         <div class="pdf-doc-controls">
                             <strong>Controle do Documento:</strong> Relatório oficial 8D para auditoria • Versão ${RELATORIO_PDF_VERSAO} • Classificação: ${RELATORIO_PDF_CLASSIFICACAO}.
@@ -6564,11 +6637,13 @@
                     <section class="pdf-page">
                         ${renderPdfSectionTitle('D2 – Definição do Problema')}
                         <div><strong>Descrição do problema:</strong> ${escapeHtml(rnc.descricao || rnc.d2?.problema || '-')}</div>
-                        <div class="pdf-grid" style="margin-top:8px;">
-                            <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
-                            <div><strong>Modo de falha:</strong> ${escapeHtml(rnc.tipoFalha || '-')}</div>
-                            <div><strong>Quantidade impactada:</strong> ${escapeHtml(String(rnc.quantidade || '-'))}</div>
-                        </div>
+                         <div class="pdf-grid" style="margin-top:8px;">
+                             <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
+                             <div><strong>Modo de falha:</strong> ${escapeHtml(rnc.tipoFalha || '-')}</div>
+                             <div><strong>Quantidade impactada:</strong> ${escapeHtml(String(rnc.quantidade || '-'))}</div>
+                             <div><strong>Planta causadora:</strong> ${escapeHtml(rnc.plantaCausadora || '-')}</div>
+                             <div><strong>Origem da reclamação:</strong> ${escapeHtml(rnc.origemReclamacao || '-')}</div>
+                         </div>
                         <h4 class="pdf-subtitle">Imagens de referência</h4>
                         <div class="pdf-image-grid">
                             ${renderImagemOuAnexoRelatorio('Peça Conforme', rnc.fotosPeca?.conforme?.conteudo, { variant: 'green' })}
@@ -7213,17 +7288,19 @@
                         return;
                     }
 
-                    const novaRnc = {
-                        id: nextId,
-                        numero: numeroRnc,
-                        cliente: formData.get('cliente'),
-                        codigoPeca: formData.get('codigoPeca'),
-                        tipoFalha: formData.get('tipoFalha'),
-                        responsavel: responsavelContencao?.nome || '',
-                        quantidade: Number(formData.get('quantidade')),
-                        faseAtual: 'd1',
-                        status: 'ON_TIME',
-                        prioridade: formData.get('prioridade'),
+                     const novaRnc = {
+                         id: nextId,
+                         numero: numeroRnc,
+                         cliente: formData.get('cliente'),
+                         plantaCausadora: formData.get('plantaCausadora'),
+                         codigoPeca: formData.get('codigoPeca'),
+                         tipoFalha: formData.get('tipoFalha'),
+                         origemReclamacao: formData.get('origemReclamacao'),
+                         responsavel: responsavelContencao?.nome || '',
+                         quantidade: Number(formData.get('quantidade')),
+                         faseAtual: 'd1',
+                         status: 'ON_TIME',
+                         prioridade: formData.get('prioridade'),
                         setor: formData.get('setor'),
                         dataAbertura,
                         descricao: formData.get('descricao'),
