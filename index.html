@@ -6510,12 +6510,15 @@
             const nomeArquivoPdf = `Relatorio_8D_${rnc.numero || 'RNC'}`.replace(/[^\w\-]+/g, '_');
             const RELATORIO_PDF_VERSAO = '1.0';
             const RELATORIO_PDF_CLASSIFICACAO = 'Interno e Cliente';
-            // Capa + 8 disciplinas (D1 a D8)
-            const totalPaginas = 9;
             const NUM_PORQUES = 5;
+            const renderMagiusLogoSvg = () => `
+                <svg viewBox="0 0 320 64" role="img" aria-label="MAGIUS" xmlns="http://www.w3.org/2000/svg">
+                    <text x="0" y="46" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="4" fill="currentColor">MAGIUS</text>
+                </svg>
+            `;
             const renderPdfHeader = () => `
                 <div class="pdf-header-bar">
-                    <div class="pdf-logo">MAGIUS</div>
+                    <div class="pdf-logo">${renderMagiusLogoSvg()}</div>
                     <div class="pdf-frase">AJUDANDO A CONSTRUIR, CULTIVAR, TRANSPORTAR E SEGUIR EM FRENTE</div>
                 </div>
                 <div class="pdf-report-title">
@@ -6524,12 +6527,6 @@
                 </div>
             `;
             const renderPdfSectionTitle = (tituloEtapa) => `<h3 class="pdf-section-title">${tituloEtapa}</h3>`;
-            const renderPdfFooter = (pageNumber) => `
-                <div class="pdf-footer">
-                    <span>RNC: ${escapeHtml(rnc.numero)}</span>
-                    <span>Relatório 8D – Página ${pageNumber} de ${totalPaginas}</span>
-                </div>
-            `;
             const renderPorquesRelatorio = (tipo) => `
                 <div class="pdf-why-list">
                     ${Array.from({ length: NUM_PORQUES }, (_, idx) => idx + 1).map(i => `
@@ -6555,33 +6552,34 @@
                             margin-bottom: 2cm;
                             margin-left: 2cm;
                         }
-                        body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
-                        .pdf-toolbar { position: sticky; top: 0; z-index: 999; display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; background:#f1f5f9; padding:8px; border:1px solid #bfdbfe; border-radius:6px; }
-                        .pdf-toolbar button { border:none; border-radius:5px; padding:6px 12px; font-size:12px; cursor:pointer; }
-                        .pdf-toolbar .btn-export { background:#0b3a75; color:white; }
-                        .pdf-toolbar .btn-close { background:#e2e8f0; color:#1e293b; }
-                        .pdf-page { page-break-after: always; padding-bottom: 12mm; }
-                        .pdf-page:last-child { page-break-after: auto; }
-                        .pdf-header-bar { background:#0b3a75; color:#fff; min-height:2.5cm; display:flex; justify-content:space-between; align-items:center; padding:0.45cm 0.6cm; border-radius:6px; }
-                        .pdf-logo { font-weight:700; letter-spacing:0.08em; font-size:16px; }
-                        .pdf-frase { font-size:9px; text-transform:uppercase; letter-spacing:0.04em; opacity:0.92; max-width:62%; text-align:right; }
-                        .pdf-report-title { margin-top:8px; background:#dbeafe; border-bottom:2px solid #1e3a8a; border-radius:4px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; color:#0b3a75; font-weight:700; }
-                        .pdf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px 14px; margin-top:10px; }
-                        .pdf-grid div { padding:7px; border:1px solid #bfdbfe; border-radius:6px; background:#fff; }
-                        .pdf-section-title { font-size:15px; color:#1e3a8a; background:#dbeafe; margin:14px 0 8px; border-radius:4px; padding:8px 10px; border:1px solid #bfdbfe; page-break-after: avoid; }
-                        .pdf-subtitle { margin:10px 0 6px; font-size:13px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:3px; page-break-after: avoid; }
-                        .pdf-why-list { border:1px solid #bfdbfe; border-radius:6px; background:#fff; }
-                        .pdf-why-item { display:grid; grid-template-columns: 96px 1fr; gap:10px; align-items:start; padding:8px 10px; border-bottom:1px solid #dbeafe; }
-                        .pdf-why-item:last-child { border-bottom:none; }
-                        .pdf-why-label { font-weight:700; color:#1e3a8a; }
-                        .pdf-table { width:100%; border-collapse: collapse; margin-top:6px; }
-                        .pdf-table th, .pdf-table td { border:1px solid #bfdbfe; padding:6px; vertical-align: top; text-align:left; }
-                        .pdf-table th { background:#e0ecff; color:#1e3a8a; font-weight:700; page-break-after: avoid; }
-                        .pdf-table tbody tr:nth-child(even) { background:#f8fbff; }
-                        /* Repete o cabeçalho da tabela em novas páginas impressas */
-                        thead { display: table-header-group; }
+                         body { font-family: Inter, Segoe UI, Arial, sans-serif; color:#1e293b; font-size:12px; margin:0; }
+                         .pdf-document { padding-bottom: 14mm; }
+                         .pdf-toolbar { position: sticky; top: 0; z-index: 999; display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; background:#f1f5f9; padding:8px; border:1px solid #bfdbfe; border-radius:6px; }
+                         .pdf-toolbar button { border:none; border-radius:5px; padding:6px 12px; font-size:12px; cursor:pointer; }
+                         .pdf-toolbar .btn-export { background:#0b3a75; color:white; }
+                         .pdf-toolbar .btn-close { background:#e2e8f0; color:#1e293b; }
+                         .pdf-page { padding-bottom: 8mm; }
+                         .pdf-header-bar { background:#0b3a75; color:#fff; min-height:2.5cm; display:flex; justify-content:space-between; align-items:center; padding:0.45cm 0.6cm; border-radius:6px; }
+                         .pdf-logo { font-weight:700; letter-spacing:0.08em; font-size:16px; }
+                         .pdf-logo svg { height: 26px; width: auto; display:block; color:#fff; }
+                         .pdf-frase { font-size:9px; text-transform:uppercase; letter-spacing:0.04em; opacity:0.92; max-width:62%; text-align:right; }
+                         .pdf-report-title { margin-top:8px; background:#dbeafe; border-bottom:2px solid #1e3a8a; border-radius:4px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center; color:#0b3a75; font-weight:700; }
+                         .pdf-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px 14px; margin-top:10px; }
+                         .pdf-grid div { padding:7px; border:1px solid #bfdbfe; border-radius:6px; background:#fff; }
+                         .pdf-section-title { font-size:15px; color:#1e3a8a; background:#dbeafe; margin:14px 0 8px; border-radius:4px; padding:8px 10px; border:1px solid #bfdbfe; break-after: avoid; break-inside: avoid; }
+                         .pdf-subtitle { margin:10px 0 6px; font-size:13px; color:#1e40af; border-bottom:1px solid #bfdbfe; padding-bottom:3px; break-after: avoid; break-inside: avoid; }
+                         .pdf-why-list { border:1px solid #bfdbfe; border-radius:6px; background:#fff; }
+                         .pdf-why-item { display:grid; grid-template-columns: 96px 1fr; gap:10px; align-items:start; padding:8px 10px; border-bottom:1px solid #dbeafe; }
+                         .pdf-why-item:last-child { border-bottom:none; }
+                         .pdf-why-label { font-weight:700; color:#1e3a8a; }
+                         .pdf-table { width:100%; border-collapse: collapse; margin-top:6px; }
+                         .pdf-table th, .pdf-table td { border:1px solid #bfdbfe; padding:6px; vertical-align: top; text-align:left; }
+                         .pdf-table th { background:#e0ecff; color:#1e3a8a; font-weight:700; page-break-after: avoid; }
+                         .pdf-table tbody tr:nth-child(even) { background:#f8fbff; }
+                         /* Repete o cabeçalho da tabela em novas páginas impressas */
+                         thead { display: table-header-group; }
                         .pdf-muted { color:#64748b; font-style:italic; margin-top:4px; }
-                        .pdf-image-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+                         .pdf-image-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; break-inside: avoid; }
                         .pdf-image-card { border:1px solid #bfdbfe; border-radius:6px; padding:6px; break-inside: avoid; background:#fff; }
                         .pdf-image-card.green { border:2px solid #16a34a; background:#f0fdf4; }
                         .pdf-image-card.red { border:2px solid #dc2626; background:#fef2f2; }
@@ -6593,23 +6591,25 @@
                         .pdf-image-card.red img { border-color:#dc2626; }
                         .pdf-action-block { border:1px solid #bfdbfe; border-radius:6px; padding:8px; margin-bottom:8px; break-inside: avoid; }
                         .pdf-action-block h4 { margin:0 0 6px; font-size:13px; }
-                        .pdf-evidence-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:6px; }
-                        .pdf-footer { margin-top:10px; padding-top:6px; border-top:1px solid #bfdbfe; font-size:10px; color:#64748b; display:flex; justify-content:space-between; }
-                        .pdf-doc-controls { margin-top:8px; padding:8px 10px; border:1px solid #bfdbfe; border-radius:6px; background:#f8fbff; color:#334155; }
-                        @media print { .pdf-toolbar { display:none; } }
-                    </style>
-                </head>
-                <body>
-                    <div class="pdf-toolbar">
-                        <button class="btn-export" onclick="exportarPdfRelatorio()">Exportar PDF</button>
-                        <button class="btn-close" onclick="window.close()">Fechar</button>
-                    </div>
+                         .pdf-evidence-grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:6px; }
+                         .pdf-footer-fixed { position: fixed; left: 0; right: 0; bottom: 0; padding: 6px 0; border-top:1px solid #bfdbfe; font-size:10px; color:#64748b; background:#fff; }
+                         .pdf-footer-fixed .inner { max-width: 100%; padding: 0 2cm; display:flex; justify-content:space-between; }
+                         .pdf-doc-controls { margin-top:8px; padding:8px 10px; border:1px solid #bfdbfe; border-radius:6px; background:#f8fbff; color:#334155; }
+                         @media print { .pdf-toolbar { display:none; } }
+                     </style>
+                 </head>
+                 <body>
+                     <div class="pdf-toolbar">
+                         <button class="btn-export" onclick="exportarPdfRelatorio()">Exportar PDF</button>
+                         <button class="btn-close" onclick="window.close()">Fechar</button>
+                     </div>
+                    <div class="pdf-document">
                     <section class="pdf-page">
                         ${renderPdfHeader()}
                          <div class="pdf-grid">
-                             <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
-                             <div><strong>Produto / Processo:</strong> ${escapeHtml(rnc.setor || '-')}</div>
-                             <div><strong>Planta:</strong> ${escapeHtml(plantaRnc)}</div>
+                              <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
+                              <div><strong>Produto / Processo:</strong> ${escapeHtml(rnc.setor || '-')}</div>
+                              <div><strong>Planta:</strong> ${escapeHtml(plantaRnc)}</div>
                              <div><strong>Planta causadora:</strong> ${escapeHtml(rnc.plantaCausadora || '-')}</div>
                              <div><strong>Data de abertura:</strong> ${formatDateSafe(rnc.dataAbertura)}</div>
                              <div><strong>Data de encerramento:</strong> ${extractAndFormatDate(rnc.d8?.dataConclusao)}</div>
@@ -6620,23 +6620,21 @@
                         <div class="pdf-doc-controls">
                             <strong>Controle do Documento:</strong> Relatório oficial 8D para auditoria • Versão ${RELATORIO_PDF_VERSAO} • Classificação: ${RELATORIO_PDF_CLASSIFICACAO}.
                         </div>
-                        ${renderPdfFooter(1)}
-                    </section>
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D1 – Construção da Equipe')}
-                        <table class="pdf-table">
-                            <thead><tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr></thead>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D1 – Construção da Equipe')}
+                         <table class="pdf-table">
+                             <thead><tr><th>Nome</th><th>Função na RNC</th><th>Setor</th><th>Planta</th></tr></thead>
                             <tbody>
-                                ${equipeD1.length ? equipeD1.map(item => `<tr><td>${escapeHtml(item.pessoa.nome)}</td><td>${escapeHtml(item.funcaoRnc)}</td><td>${escapeHtml(item.pessoa.setor || '-')}</td><td>${escapeHtml(item.pessoa.planta || '-')}</td></tr>`).join('') : '<tr><td colspan="4">Equipe não informada.</td></tr>'}
-                            </tbody>
-                        </table>
-                        ${renderPdfFooter(2)}
-                    </section>
+                                 ${equipeD1.length ? equipeD1.map(item => `<tr><td>${escapeHtml(item.pessoa.nome)}</td><td>${escapeHtml(item.funcaoRnc)}</td><td>${escapeHtml(item.pessoa.setor || '-')}</td><td>${escapeHtml(item.pessoa.planta || '-')}</td></tr>`).join('') : '<tr><td colspan="4">Equipe não informada.</td></tr>'}
+                             </tbody>
+                         </table>
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D2 – Definição do Problema')}
-                        <div><strong>Descrição do problema:</strong> ${escapeHtml(rnc.descricao || rnc.d2?.problema || '-')}</div>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D2 – Definição do Problema')}
+                         <div><strong>Descrição do problema:</strong> ${escapeHtml(rnc.descricao || rnc.d2?.problema || '-')}</div>
                          <div class="pdf-grid" style="margin-top:8px;">
                              <div><strong>Cliente:</strong> ${escapeHtml(rnc.cliente || '-')}</div>
                              <div><strong>Modo de falha:</strong> ${escapeHtml(rnc.tipoFalha || '-')}</div>
@@ -6645,63 +6643,57 @@
                              <div><strong>Origem da reclamação:</strong> ${escapeHtml(rnc.origemReclamacao || '-')}</div>
                          </div>
                         <h4 class="pdf-subtitle">Imagens de referência</h4>
-                        <div class="pdf-image-grid">
-                            ${renderImagemOuAnexoRelatorio('Peça Conforme', rnc.fotosPeca?.conforme?.conteudo, { variant: 'green' })}
-                            ${renderImagemOuAnexoRelatorio('Peça Não Conforme', rnc.fotosPeca?.naoConforme?.conteudo, { variant: 'red' })}
-                        </div>
-                        ${renderPdfFooter(3)}
-                    </section>
+                         <div class="pdf-image-grid">
+                             ${renderImagemOuAnexoRelatorio('Peça Conforme', rnc.fotosPeca?.conforme?.conteudo, { variant: 'green' })}
+                             ${renderImagemOuAnexoRelatorio('Peça Não Conforme', rnc.fotosPeca?.naoConforme?.conteudo, { variant: 'red' })}
+                         </div>
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D3 – Contenção')}
-                        <div class="pdf-grid">
-                            <div><strong>Quantidade em estoque:</strong> ${escapeHtml(String(rnc.d3?.quantidadeEstoque || '-'))}</div>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D3 – Contenção')}
+                         <div class="pdf-grid">
+                             <div><strong>Quantidade em estoque:</strong> ${escapeHtml(String(rnc.d3?.quantidadeEstoque || '-'))}</div>
                             <div><strong>Quantidade inspecionada:</strong> ${escapeHtml(String(rnc.d3?.quantidadeInspecionada || '-'))}</div>
                             <div><strong>Quantidade não conforme:</strong> ${escapeHtml(String(rnc.d3?.quantidadeNaoConforme || '-'))}</div>
                             <div><strong>Data de conclusão da contenção:</strong> ${extractAndFormatDate(rnc.d3?.dataConclusao)}</div>
-                        </div>
-                        <h4 class="pdf-subtitle">Alerta de contenção assinado</h4>
-                        ${renderImagemOuAnexoRelatorio(rnc.d3?.anexoAlertaAssinadoNome || 'Alerta assinado', rnc.d3?.anexoAlertaAssinadoConteudo)}
-                        ${renderPdfFooter(4)}
-                    </section>
+                         </div>
+                         <h4 class="pdf-subtitle">Alerta de contenção assinado</h4>
+                         ${renderImagemOuAnexoRelatorio(rnc.d3?.anexoAlertaAssinadoNome || 'Alerta assinado', rnc.d3?.anexoAlertaAssinadoConteudo)}
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D4 – Análise da Causa Raiz')}
-                        <div class="pdf-grid">
-                            <div><strong>Causa raiz – Ocorrência:</strong> ${escapeHtml(rnc.d4?.causaRaizOcorrencia || '-')}</div>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D4 – Análise da Causa Raiz')}
+                         <div class="pdf-grid">
+                             <div><strong>Causa raiz – Ocorrência:</strong> ${escapeHtml(rnc.d4?.causaRaizOcorrencia || '-')}</div>
                             <div><strong>Causa raiz – Detecção:</strong> ${escapeHtml(rnc.d4?.causaRaizDeteccao || '-')}</div>
                         </div>
                         <h4 class="pdf-subtitle">5 Porquês – Ocorrência</h4>
-                        ${renderPorquesRelatorio('ocorrencia')}
-                        <h4 class="pdf-subtitle">5 Porquês – Detecção</h4>
-                        ${renderPorquesRelatorio('deteccao')}
-                        ${renderPdfFooter(5)}
-                    </section>
+                         ${renderPorquesRelatorio('ocorrencia')}
+                         <h4 class="pdf-subtitle">5 Porquês – Detecção</h4>
+                         ${renderPorquesRelatorio('deteccao')}
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D5 – Ações Corretivas')}
-                        ${renderTabelaAcoesRelatorio(acoesD5)}
-                        ${renderPdfFooter(6)}
-                    </section>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D5 – Ações Corretivas')}
+                         ${renderTabelaAcoesRelatorio(acoesD5)}
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D6 – Implementação das Ações Corretivas')}
-                        ${renderEvidenciasAcoesRelatorio(acoesD5, 'Ação corretiva')}
-                        ${renderPdfFooter(7)}
-                    </section>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D6 – Implementação das Ações Corretivas')}
+                         ${renderEvidenciasAcoesRelatorio(acoesD5, 'Ação corretiva')}
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D7 – Ações Preventivas')}
-                        ${renderTabelaAcoesRelatorio(acoesD7, true)}
-                        <h4 class="pdf-subtitle">Implementação e Evidências</h4>
-                        ${renderEvidenciasAcoesRelatorio(acoesD7, 'Ação preventiva')}
-                        ${renderPdfFooter(8)}
-                    </section>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D7 – Ações Preventivas')}
+                         ${renderTabelaAcoesRelatorio(acoesD7, true)}
+                         <h4 class="pdf-subtitle">Implementação e Evidências</h4>
+                         ${renderEvidenciasAcoesRelatorio(acoesD7, 'Ação preventiva')}
+                     </section>
 
-                    <section class="pdf-page">
-                        ${renderPdfSectionTitle('D8 – Lições Aprendidas e Reconhecimento')}
-                        <h4 class="pdf-subtitle">Lições Aprendidas</h4>
-                        <div>${escapeHtml(rnc.d8?.licaoAprendida || '-')}</div>
+                     <section class="pdf-page">
+                         ${renderPdfSectionTitle('D8 – Lições Aprendidas e Reconhecimento')}
+                         <h4 class="pdf-subtitle">Lições Aprendidas</h4>
+                         <div>${escapeHtml(rnc.d8?.licaoAprendida || '-')}</div>
                         <h4 class="pdf-subtitle">Reconhecimento Individual</h4>
                         <table class="pdf-table">
                             <thead><tr><th>Nome</th><th>Função</th><th>Reconhecimento</th></tr></thead>
@@ -6711,16 +6703,22 @@
                                     return `<tr><td>${escapeHtml(item.pessoa.nome)}</td><td>${escapeHtml(item.funcaoRnc)}</td><td>${escapeHtml(rnc.d8?.reconhecimentoIndividual?.[key] || '-')}</td></tr>`;
                                 }).join('') : '<tr><td colspan="3">Sem equipe vinculada.</td></tr>'}
                             </tbody>
-                        </table>
-                        <h4 class="pdf-subtitle">Agradecimento Final</h4>
-                        <div>${escapeHtml(rnc.d8?.mensagemFinal || '-')}</div>
-                        ${renderPdfFooter(9)}
-                    </section>
-                    <script>
-                        function exportarPdfRelatorio() {
-                            window.focus();
-                            window.print();
-                        }
+                         </table>
+                         <h4 class="pdf-subtitle">Agradecimento Final</h4>
+                         <div>${escapeHtml(rnc.d8?.mensagemFinal || '-')}</div>
+                     </section>
+                    </div>
+                    <div class="pdf-footer-fixed" aria-hidden="true">
+                        <div class="inner">
+                            <span>RNC: ${escapeHtml(rnc.numero)}</span>
+                            <span>Relatório 8D • Gerado em ${escapeHtml(dataGeracao)}</span>
+                        </div>
+                    </div>
+                     <script>
+                         function exportarPdfRelatorio() {
+                             window.focus();
+                             window.print();
+                         }
                     <\/script>
                 </body>
                 </html>
