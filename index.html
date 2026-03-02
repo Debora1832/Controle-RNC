@@ -2100,8 +2100,10 @@
         function consolidateD4Data(d4) {
             d4.ocorrencia = d4.ocorrencia || { why1: '', why2: '', why3: '', why4: '', why5: '' };
             d4.deteccao = d4.deteccao || { why1: '', why2: '', why3: '', why4: '', why5: '' };
+            d4.sistemica = d4.sistemica || { why1: '', why2: '', why3: '', why4: '', why5: '' };
             d4.causaRaizOcorrencia = getUltimoPorquePreenchido(d4.ocorrencia);
             d4.causaRaizDeteccao = getUltimoPorquePreenchido(d4.deteccao);
+            d4.causaRaizSistemica = getUltimoPorquePreenchido(d4.sistemica);
             // Compatibilidade com estrutura legada do D4.
             for (let i = 1; i <= 5; i++) d4[`why${i}`] = d4.ocorrencia[`why${i}`];
             d4.causaRaiz = d4.causaRaizOcorrencia || '';
@@ -2123,6 +2125,13 @@
                 why4: '',
                 why5: ''
             };
+            rnc.d4.sistemica = rnc.d4.sistemica || {
+                why1: '',
+                why2: '',
+                why3: '',
+                why4: '',
+                why5: ''
+            };
             consolidateD4Data(rnc.d4);
         }
 
@@ -2133,8 +2142,10 @@
             for (let i = 1; i <= 5; i++) {
                 const oc = document.getElementById(`d4-oc-why${i}`);
                 const det = document.getElementById(`d4-det-why${i}`);
+                const sis = document.getElementById(`d4-sis-why${i}`);
                 if (oc) d4.ocorrencia[`why${i}`] = oc.value;
                 if (det) d4.deteccao[`why${i}`] = det.value;
+                if (sis) d4.sistemica[`why${i}`] = sis.value;
             }
             consolidateD4Data(d4);
         }
@@ -5065,6 +5076,7 @@
                         <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'principal' ? 'active' : ''}" data-d4-subtab="principal">Principal</button>
                         <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'ocorrencia' ? 'active' : ''}" data-d4-subtab="ocorrencia">Ocorrência</button>
                         <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'deteccao' ? 'active' : ''}" data-d4-subtab="deteccao">Detecção</button>
+                        <button type="button" class="modal-tab d4-subtab ${state.activeD4SubTab === 'sistemica' ? 'active' : ''}" data-d4-subtab="sistemica">Sistêmica</button>
                     </div>
                     ${state.activeD4SubTab === 'principal' ? `
                         <div class="form-group">
@@ -5074,6 +5086,10 @@
                         <div class="form-group">
                             <label for="d4-causa-raiz-deteccao">Causa Raiz – Detecção</label>
                             <input type="text" id="d4-causa-raiz-deteccao" value="${escapeHtml(getUltimoPorquePreenchido(d4.deteccao))}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="d4-causa-raiz-sistemica">Causa Raiz – Sistêmica</label>
+                            <input type="text" id="d4-causa-raiz-sistemica" value="${escapeHtml(getUltimoPorquePreenchido(d4.sistemica))}" readonly>
                         </div>
                     ` : ''}
                     ${state.activeD4SubTab === 'ocorrencia' ? `
@@ -5091,6 +5107,15 @@
                             <div class="form-group">
                                 <label>${i}º Por quê?</label>
                                 <textarea rows="2" id="d4-det-why${i}">${escapeHtml(d4.deteccao[`why${i}`] || '')}</textarea>
+                            </div>
+                        `).join('')}
+                    ` : ''}
+                    ${state.activeD4SubTab === 'sistemica' ? `
+                        <h4 style="font-weight: 700; margin-bottom: 1rem;">Análise 5 Porquês - Sistêmica</h4>
+                        ${[1,2,3,4,5].map(i => `
+                            <div class="form-group">
+                                <label>${i}º Por quê?</label>
+                                <textarea rows="2" id="d4-sis-why${i}">${escapeHtml(d4.sistemica[`why${i}`] || '')}</textarea>
                             </div>
                         `).join('')}
                     ` : ''}
@@ -6670,11 +6695,14 @@
                         <div class="pdf-grid">
                             <div><strong>Causa raiz – Ocorrência:</strong> ${escapeHtml(rnc.d4?.causaRaizOcorrencia || '-')}</div>
                             <div><strong>Causa raiz – Detecção:</strong> ${escapeHtml(rnc.d4?.causaRaizDeteccao || '-')}</div>
+                            <div><strong>Causa raiz – Sistêmica:</strong> ${escapeHtml(rnc.d4?.causaRaizSistemica || '-')}</div>
                         </div>
                         <h4 class="pdf-subtitle">5 Porquês – Ocorrência</h4>
                         ${renderPorquesRelatorio('ocorrencia')}
                         <h4 class="pdf-subtitle">5 Porquês – Detecção</h4>
                         ${renderPorquesRelatorio('deteccao')}
+                        <h4 class="pdf-subtitle">5 Porquês – Sistêmica</h4>
+                        ${renderPorquesRelatorio('sistemica')}
                         ${renderPdfFooter(5)}
                     </section>
 
@@ -6785,8 +6813,10 @@
                 for (let i = 1; i <= 5; i++) {
                     const oc = document.getElementById(`d4-oc-why${i}`);
                     const det = document.getElementById(`d4-det-why${i}`);
+                    const sis = document.getElementById(`d4-sis-why${i}`);
                     if (oc) d4.ocorrencia[`why${i}`] = oc.value;
                     if (det) d4.deteccao[`why${i}`] = det.value;
+                    if (sis) d4.sistemica[`why${i}`] = sis.value;
                 }
                 consolidateD4Data(d4);
             } else if (phaseId === 'd5') {
